@@ -1,0 +1,21 @@
+# Visual Studio files
+.vs/
+*.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+bin/
+obj/
+
+# Other files
+*.dbmdl
+*.dbproj.schemaview
+*.jfm
+*.scc
