@@ -50,7 +50,7 @@ class Program
                 {
                     var message = new MqttApplicationMessageBuilder()
                         .WithTopic(topic)
-                        .WithPayload($"Hello, World!")
+                        .WithPayload("Hello, World!")
                         .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
                         .WithRetainFlag()
                         .Build();
