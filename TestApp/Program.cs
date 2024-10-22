@@ -20,6 +20,7 @@ class Program
                 .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
                 .Build();
 
+
             var mqttSettings = new MqttSettings();
             config.GetSection("MqttSettings").Bind(mqttSettings);
 
@@ -27,7 +28,25 @@ class Program
             await mqttClientService.ConnectAsync();
             await Task.Delay(Timeout.Infinite);
 
-            
+            if (mqttSettings.Role == "Publisher")
+            {
+                // Publish a file instead of a message
+                string filePath = "path/to/file/to/publish.txt";
+                await ClientService.PublishFileAsync(mqttSettings.Topic, filePath);
+            }
+            else if (mqttSettings.Role == "Subscriber")
+            {
+                // Subscribe and save the file
+                string saveFilePath = "path/to/save/received/file.txt";
+                await ClientService.SubscribeToFileAsync(mqttSettings.Topic, saveFilePath);
+
+                // Keep subscriber running
+                await Task.Delay(Timeout.Infinite);
+            }
+
+
+
+
             //await mqttClientService.DisconnectAsync();
         }
         catch (Exception ex)

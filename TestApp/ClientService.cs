@@ -5,8 +5,9 @@ using System.Text;
 using System.Threading.Tasks;
 using Serilog;
 using TestApp;
+using MQTTnet.Protocol;
 
-public class ClientService
+public class ClientService : TestApp.MqttClientInterfaces.IPublisher, TestApp.MqttClientInterfaces.ISubscriber
 {
     private readonly MqttSettings _mqttSettings;
     private readonly IMqttClient _mqttClient;
@@ -62,14 +63,28 @@ public class ClientService
         }
     }
 
+    private readonly SemaphoreSlim _reconnectSemaphore = new SemaphoreSlim(1, 1);
+
     private async Task HandleDisconnectedAsync(MqttClientDisconnectedEventArgs e)
     {
         Log.Warning("Disconnected from MQTT broker. Attempting to reconnect...");
-        Log.Information("Client State: {State}", _mqttClient.IsConnected ? "Connected" : "Disconnected");
-        await ReconnectAsync();
 
+        // Only allow one reconnection attempt at a time
+        if (_reconnectSemaphore.CurrentCount == 0)
+        {
+            Log.Information("Reconnection already in progress.");
+            return;
+        }
 
-
+        await _reconnectSemaphore.WaitAsync();
+        try
+        {
+            await ReconnectAsync();
+        }
+        finally
+        {
+            _reconnectSemaphore.Release();
+        }
     }
 
     private async Task ReconnectAsync()
@@ -80,9 +95,8 @@ public class ClientService
             {
                 if (_mqttClient.IsConnected)
                 {
-
-                    Log.Information("Client is already connected.");
-                    return;
+                    // Log.Information("Client is already connected.");
+                    return; // Exit if already connected
                 }
 
                 Log.Information("Attempting to reconnect...");
@@ -101,33 +115,39 @@ public class ClientService
         }
     }
 
-    private async Task SubscribeAsync()
+    public async Task PublishFileAsync(string topic, string filePath)
     {
-        await _mqttClient.SubscribeAsync(_mqttSettings.Topic);
-        Log.Information("Subscribed to topic: {Topic}", _mqttSettings.Topic);
-
-        _mqttClient.ApplicationMessageReceivedAsync += e =>
+        if (!File.Exists(filePath))
         {
-            Log.Information("Received message: {Message}", Encoding.UTF8.GetString(e.ApplicationMessage.PayloadSegment));
-            return Task.CompletedTask;
-        };
-    }
+            Log.Error("File does not exist: {FilePath}", filePath);
+            return;
+        }
 
-    private async Task PublishAsync(string message)
-    {
+        var fileBytes = await File.ReadAllBytesAsync(filePath);
+
         var mqttMessage = new MqttApplicationMessageBuilder()
-            .WithTopic(_mqttSettings.Topic)
-            .WithPayload(message)
-            .WithQualityOfServiceLevel(MQTTnet.Protocol.MqttQualityOfServiceLevel.AtLeastOnce)
-            .WithRetainFlag()
+            .WithTopic(topic)
+            .WithPayload(fileBytes)
+            .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
             .Build();
 
-        for (int i = 0; i < 5; i++)
+        await _mqttClient.PublishAsync(mqttMessage);
+        Log.Information("Published file: {FilePath} to topic: {Topic}", filePath, topic);
+    }
+
+    // Subscribe and receive file, then save it
+    public async Task SubscribeToFileAsync(string topic, string saveFilePath)
+    {
+        await _mqttClient.SubscribeAsync(topic);
+
+        _mqttClient.ApplicationMessageReceivedAsync += async e =>
         {
-            await _mqttClient.PublishAsync(mqttMessage);
-            Log.Information("Published message: {Message}", message);
-            await Task.Delay(1000);
-        }
+            var fileBytes = e.ApplicationMessage.PayloadSegment.ToArray();
+            await File.WriteAllBytesAsync(saveFilePath, fileBytes);
+            Log.Information("Received file and saved to: {SaveFilePath}", saveFilePath);
+        };
+
+        Log.Information("Subscribed to topic: {Topic}", topic);
     }
 
     public async Task DisconnectAsync()
