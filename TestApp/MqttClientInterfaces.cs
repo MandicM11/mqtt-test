@@ -8,14 +8,13 @@ namespace TestApp.MqttClientInterfaces
 {
     public interface IPublisher
     {
-        Task PublishAsync(string topic, byte[] payload);
-        Task PublishFileAsync(string topic, string filePath);
+        Task PublishAsync(string topic, object data);
     }
 
     public interface ISubscriber
     {
-        Task SubscribeAsync(string topic);
-        Task SubscribeToFileAsync(string topic, string saveFilePath);
+        Task SubscribeAsync(string topic, Action<object> onDataReceived);
     }
+
 }
 
