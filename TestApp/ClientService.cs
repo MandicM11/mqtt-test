@@ -38,6 +38,7 @@ public class ClientService : IPublisher, ISubscriber
             .WithTcpServer(_mqttSettings.Broker, _mqttSettings.Port)
             .WithClientId(Guid.NewGuid().ToString())
             .WithCredentials(_mqttSettings.Username, _mqttSettings.Password)
+            
             .Build();
 
         try
@@ -189,12 +190,66 @@ public class ClientService : IPublisher, ISubscriber
             else
             {
                 // If it's binary (assumed to be a file), save it
-                
-                await File.WriteAllBytesAsync(_mqttSettings.SavedFilePath, payload);  
-                Log.Information("Received file and saved to: {FilePath}", _mqttSettings.SavedFilePath);
+                try
+                {
+                    string fileExtension = GetFileExtension(payload);
+                    Log.Information($"{fileExtension}");
+                    var uniqueFileName = $"received_file{fileExtension}";
+                    var filePath = Path.Combine(_mqttSettings.SavedFilePath, uniqueFileName);
+
+                    // Ensure the directory exists
+                    if (!string.IsNullOrWhiteSpace(_mqttSettings.SavedFilePath))
+                    {
+                        var directory = Path.GetDirectoryName(filePath);
+                        if (!Directory.Exists(directory))
+                        {
+                            Directory.CreateDirectory(directory);
+                            Log.Information("Directory created: {Directory}", directory);
+                        }
+
+                        // Write the received payload to a new file
+                        await File.WriteAllBytesAsync(filePath, payload);
+                        Log.Information("Received file and saved to: {FilePath}", filePath);
+                    }
+                    else
+                    {
+                        Log.Error("Saved file path is null or empty.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Error("Error processing received message: {Message}", ex.Message);
+                }
             }
         };
     }
+
+
+    private string GetFileExtension(byte[] payload)
+    {
+        // Simple checks to determine the file type based on magic numbers
+        if (payload.Length >= 4)
+        {
+            // Check for common image file signatures (magic numbers)
+            if (payload[0] == 0xFF && payload[1] == 0xD8) // JPEG
+            {
+                return ".jpg";
+            }
+            else if (payload[0] == 0x89 && payload[1] == 0x50 && payload[2] == 0x4E && payload[3] == 0x47) // PNG
+            {
+                return ".png";
+            }
+            else if (payload[0] == 0x47 && payload[1] == 0x49 && payload[2] == 0x46) // GIF
+            {
+                return ".gif";
+            }
+            // Add more checks for other file types as needed
+        }
+
+        // Default to .bin if file type is not recognized
+        return ".bin";
+    }
+
 
     // Helper method to determine if the payload is text or binary
     private bool IsTextPayload(byte[] payload)
