@@ -13,7 +13,7 @@ namespace TestApp.MqttClientInterfaces
 
     public interface ISubscriber
     {
-        Task SubscribeAsync(string topic, Action<object> onDataReceived);
+        Task SubscribeAsync(string topic);
     }
 
 }

@@ -50,32 +50,27 @@ public class ClientService : IPublisher, ISubscriber
                 if (_mqttSettings.Role == "Subscriber")
                 {
                     // Pass a callback to handle message or file reception
-                    await SubscribeAsync(_mqttSettings.Topic, (data) =>
-                    {
-                        if (data is string message)
-                        {
-                            Log.Information("Received message: {Message}", message);
-                        }
-                        else if (data is byte[] fileBytes)
-                        {
-                            Log.Information("Received file with {Length} bytes", fileBytes.Length);
-                            // Optionally save the file
-                        }
-                    });
+                    await SubscribeAsync(_mqttSettings.Topic);
+                    
                 }
                 else if (_mqttSettings.Role == "Publisher")
                 {
-                    // Publish either a message or a file
-                    if (_mqttSettings.PublishFilePath != null)
-                    {
-                        var fileBytes = await File.ReadAllBytesAsync(_mqttSettings.PublishFilePath);
-                        await PublishAsync(_mqttSettings.Topic, fileBytes);  // Publishing file
-                    }
-                    else
-                    {
-                        await PublishAsync(_mqttSettings.Topic, "Hello!");  // Publishing simple message
-                    }
-                }
+                    await PublishAsync(_mqttSettings.Topic, _mqttSettings.PublishedFilePath);
+                        
+                }    
+                //{
+                //    // Publish either a message or a file
+                //    if (_mqttSettings.PublishFilePath != null)
+                //    {
+                //        var fileBytes = await File.ReadAllBytesAsync(_mqttSettings.PublishFilePath);
+                //        await PublishAsync(_mqttSettings.Topic, fileBytes);  
+                //    }
+                //    else
+                //    {
+                //        await PublishAsync(_mqttSettings.Topic, "Hello!"); 
+                //    }
+                //}
+
             }
             else
             {
@@ -138,18 +133,25 @@ public class ClientService : IPublisher, ISubscriber
         }
     }
 
-    // Implementing PublishAsync for IPublisher
+    // Implementing PublishAsync 
     public async Task PublishAsync(string topic, object data)
     {
         byte[] payload;
-        if (data is string message)
+
+        if (data is string messageOrFilePath)
         {
-            payload = Encoding.UTF8.GetBytes(message);
+            if (File.Exists(messageOrFilePath))  // Check if it's a file path
+            {
+                // Read file content into byte array
+                payload = await File.ReadAllBytesAsync(messageOrFilePath);
+            }
+            else 
+            {
+                // Treat it as a regular message if it's not a file path
+                payload = Encoding.UTF8.GetBytes(messageOrFilePath);
+            }
         }
-        else if (data is byte[] fileBytes)
-        {
-            payload = fileBytes;
-        }
+       
         else
         {
             throw new ArgumentException("Unsupported data type for publishing.");
@@ -165,32 +167,44 @@ public class ClientService : IPublisher, ISubscriber
         Log.Information("Published data to topic: {Topic}", topic);
     }
 
+
     // Subscriber implementation
-    public async Task SubscribeAsync(string topic, Action<object> onDataReceived)
+    public async Task SubscribeAsync(string topic)
     {
         await _mqttClient.SubscribeAsync(topic);
 
-        _mqttClient.ApplicationMessageReceivedAsync += e =>
+        _mqttClient.ApplicationMessageReceivedAsync += async e =>
         {
-            object receivedData;
-            if (e.ApplicationMessage.Payload.Length > 0 && e.ApplicationMessage.Payload.Length < 1000)
+            var payload = e.ApplicationMessage.PayloadSegment.ToArray();
+
+            Log.Information("Subscribed to topic: {Topic}", topic);
+
+            // Determine whether the payload is a string or a file
+            if (IsTextPayload(payload))
             {
-                receivedData = Encoding.UTF8.GetString(e.ApplicationMessage.Payload); // Assuming small payloads are text
+                // If it's a string, decode it
+                var message = Encoding.UTF8.GetString(payload);
+                Log.Information("Received message: {Message}", message);
             }
             else
             {
-                receivedData = e.ApplicationMessage.Payload; // Assuming large payloads are files
+                // If it's binary (assumed to be a file), save it
+                
+                await File.WriteAllBytesAsync(_mqttSettings.SavedFilePath, payload);  
+                Log.Information("Received file and saved to: {FilePath}", _mqttSettings.SavedFilePath);
             }
-
-            onDataReceived(receivedData);
-            return Task.CompletedTask;
         };
+    }
 
-        Log.Information("Subscribed to topic: {Topic}", topic);
+    // Helper method to determine if the payload is text or binary
+    private bool IsTextPayload(byte[] payload)
+    {
+        // Check if all bytes are within the ASCII printable range (32 to 126)
+        return payload.All(b => b >= 32 && b <= 126);
     }
 
 
-public async Task DisconnectAsync()
+    public async Task DisconnectAsync()
     {
         await _mqttClient.DisconnectAsync();
         Log.Information("Disconnected from MQTT broker");

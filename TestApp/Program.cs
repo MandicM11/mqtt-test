@@ -28,21 +28,21 @@ class Program
             await mqttClientService.ConnectAsync();
             await Task.Delay(Timeout.Infinite);
 
-            if (mqttSettings.Role == "Publisher")
-            {
-                // Publish a file instead of a message
-                string filePath = "path/to/file/to/publish.txt";
-                await ClientService.PublishFileAsync(mqttSettings.Topic, filePath);
-            }
-            else if (mqttSettings.Role == "Subscriber")
-            {
-                // Subscribe and save the file
-                string saveFilePath = "path/to/save/received/file.txt";
-                await ClientService.SubscribeToFileAsync(mqttSettings.Topic, saveFilePath);
+            //if (mqttSettings.Role == "Publisher")
+            //{
+            //    // Publish a file instead of a message
+                
+            //    await ClientService.PublishAsync(mqttSettings.Topic, mqttSettings.PublishedFilePath);
+            //}
+            //else if (mqttSettings.Role == "Subscriber")
+            //{
+            //    // Subscribe and save the file
+                
+            //    await ClientService.SubscribeAsync(mqttSettings.Topic);
 
-                // Keep subscriber running
-                await Task.Delay(Timeout.Infinite);
-            }
+            //    // Keep subscriber running
+            //    await Task.Delay(Timeout.Infinite);
+            //}
 
 
 

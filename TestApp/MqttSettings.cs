@@ -15,6 +15,9 @@ namespace TestApp
         public string Topic { get; set; }
 
         public string Role { get; set; }
+        public string PublishedFilePath {  get; set; }
+        public string SavedFilePath {  get; set; }
+
     }
 
 }
