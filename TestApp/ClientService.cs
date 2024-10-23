@@ -1,16 +1,22 @@
 ﻿using MQTTnet;
 using MQTTnet.Client;
 using System;
+using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 using Serilog;
+using MQTTnet.Protocol;
+using TestApp.MqttClientInterfaces;
+using System.Threading;
 using TestApp;
 
-public class ClientService
+public class ClientService : IPublisher, ISubscriber
 {
     private readonly MqttSettings _mqttSettings;
     private readonly IMqttClient _mqttClient;
+    //private readonly HandlePayload _handlePayload;
     private bool _isConnecting;
+    private readonly SemaphoreSlim _reconnectSemaphore = new SemaphoreSlim(1, 1);
 
     public ClientService(MqttSettings mqttSettings)
     {
@@ -33,7 +39,9 @@ public class ClientService
             .WithTcpServer(_mqttSettings.Broker, _mqttSettings.Port)
             .WithClientId(Guid.NewGuid().ToString())
             .WithCredentials(_mqttSettings.Username, _mqttSettings.Password)
+            
             .Build();
+        
 
         try
         {
@@ -44,12 +52,17 @@ public class ClientService
 
                 if (_mqttSettings.Role == "Subscriber")
                 {
-                    await SubscribeAsync();
+                    // Pass a callback to handle message or file reception
+                    await SubscribeAsync(_mqttSettings.Topic);
+                    
                 }
                 else if (_mqttSettings.Role == "Publisher")
                 {
-                    await PublishAsync("Hello!");
-                }
+                    await PublishAsync(_mqttSettings.Topic, _mqttSettings.PublishedFilePath);
+                        
+                }    
+                
+
             }
             else
             {
@@ -62,14 +75,26 @@ public class ClientService
         }
     }
 
+
     private async Task HandleDisconnectedAsync(MqttClientDisconnectedEventArgs e)
     {
         Log.Warning("Disconnected from MQTT broker. Attempting to reconnect...");
-        Log.Information("Client State: {State}", _mqttClient.IsConnected ? "Connected" : "Disconnected");
-        await ReconnectAsync();
 
+        if (_reconnectSemaphore.CurrentCount == 0)
+        {
+            Log.Information("Reconnection already in progress.");
+            return;
+        }
 
-
+        await _reconnectSemaphore.WaitAsync();
+        try
+        {
+            await ReconnectAsync();
+        }
+        finally
+        {
+            _reconnectSemaphore.Release();
+        }
     }
 
     private async Task ReconnectAsync()
@@ -80,7 +105,6 @@ public class ClientService
             {
                 if (_mqttClient.IsConnected)
                 {
-
                     Log.Information("Client is already connected.");
                     return;
                 }
@@ -101,34 +125,57 @@ public class ClientService
         }
     }
 
-    private async Task SubscribeAsync()
+    // Implementing PublishAsync 
+    public async Task PublishAsync(string topic, object data)
     {
-        await _mqttClient.SubscribeAsync(_mqttSettings.Topic);
-        Log.Information("Subscribed to topic: {Topic}", _mqttSettings.Topic);
+       
+        var handlePublisher = new HandlePublisher();
+        byte[] payload = await handlePublisher.HandlePayloadAsync(data);
+        var mqttMessage = new MqttApplicationMessageBuilder()
+            .WithTopic(topic)
+            .WithPayload(payload)
+            .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+            .Build();
 
-        _mqttClient.ApplicationMessageReceivedAsync += e =>
+        await _mqttClient.PublishAsync(mqttMessage);
+        Log.Information("Published data to topic: {Topic}", topic);
+    }
+
+
+    // Subscriber implementation
+    public async Task SubscribeAsync(string topic)
+    {
+        await _mqttClient.SubscribeAsync(topic);
+
+        _mqttClient.ApplicationMessageReceivedAsync += async e =>
         {
-            Log.Information("Received message: {Message}", Encoding.UTF8.GetString(e.ApplicationMessage.PayloadSegment));
-            return Task.CompletedTask;
+            var payload = e.ApplicationMessage.PayloadSegment.ToArray();
+
+            Log.Information("Subscribed to topic: {Topic}", topic);
+
+            var handlePayload = new HandleSubscriber(_mqttSettings);
+            
+            try
+                    {
+                        await handlePayload.ReadFileAsync(payload);
+     
+                    }
+                catch (Exception ex)
+                    {
+                    Log.Error("Error processing received message: {Message}", ex.Message);
+                    }
+            
         };
     }
 
-    private async Task PublishAsync(string message)
-    {
-        var mqttMessage = new MqttApplicationMessageBuilder()
-            .WithTopic(_mqttSettings.Topic)
-            .WithPayload(message)
-            .WithQualityOfServiceLevel(MQTTnet.Protocol.MqttQualityOfServiceLevel.AtLeastOnce)
-            .WithRetainFlag()
-            .Build();
 
-        for (int i = 0; i < 5; i++)
-        {
-            await _mqttClient.PublishAsync(mqttMessage);
-            Log.Information("Published message: {Message}", message);
-            await Task.Delay(1000);
-        }
+    
+    private bool IsTextPayload(byte[] payload)
+    {
+        // Check if all bytes are within the ASCII printable range (32 to 126)
+        return payload.All(b => b >= 32 && b <= 126);
     }
+
 
     public async Task DisconnectAsync()
     {

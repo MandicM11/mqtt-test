@@ -20,6 +20,7 @@ class Program
                 .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
                 .Build();
 
+
             var mqttSettings = new MqttSettings();
             config.GetSection("MqttSettings").Bind(mqttSettings);
 
@@ -27,7 +28,11 @@ class Program
             await mqttClientService.ConnectAsync();
             await Task.Delay(Timeout.Infinite);
 
-            
+           
+
+
+
+
             //await mqttClientService.DisconnectAsync();
         }
         catch (Exception ex)
