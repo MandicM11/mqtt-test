@@ -14,6 +14,7 @@ public class ClientService : IPublisher, ISubscriber
 {
     private readonly MqttSettings _mqttSettings;
     private readonly IMqttClient _mqttClient;
+    //private readonly HandlePayload _handlePayload;
     private bool _isConnecting;
     private readonly SemaphoreSlim _reconnectSemaphore = new SemaphoreSlim(1, 1);
 
@@ -40,6 +41,7 @@ public class ClientService : IPublisher, ISubscriber
             .WithCredentials(_mqttSettings.Username, _mqttSettings.Password)
             
             .Build();
+        
 
         try
         {
@@ -59,18 +61,7 @@ public class ClientService : IPublisher, ISubscriber
                     await PublishAsync(_mqttSettings.Topic, _mqttSettings.PublishedFilePath);
                         
                 }    
-                //{
-                //    // Publish either a message or a file
-                //    if (_mqttSettings.PublishFilePath != null)
-                //    {
-                //        var fileBytes = await File.ReadAllBytesAsync(_mqttSettings.PublishFilePath);
-                //        await PublishAsync(_mqttSettings.Topic, fileBytes);  
-                //    }
-                //    else
-                //    {
-                //        await PublishAsync(_mqttSettings.Topic, "Hello!"); 
-                //    }
-                //}
+                
 
             }
             else
@@ -137,27 +128,9 @@ public class ClientService : IPublisher, ISubscriber
     // Implementing PublishAsync 
     public async Task PublishAsync(string topic, object data)
     {
-        byte[] payload;
-
-        if (data is string messageOrFilePath)
-        {
-            if (File.Exists(messageOrFilePath))  // Check if it's a file path
-            {
-                // Read file content into byte array
-                payload = await File.ReadAllBytesAsync(messageOrFilePath);
-            }
-            else 
-            {
-                // Treat it as a regular message if it's not a file path
-                payload = Encoding.UTF8.GetBytes(messageOrFilePath);
-            }
-        }
        
-        else
-        {
-            throw new ArgumentException("Unsupported data type for publishing.");
-        }
-
+        var handlePublisher = new HandlePublisher();
+        byte[] payload = await handlePublisher.HandlePayloadAsync(data);
         var mqttMessage = new MqttApplicationMessageBuilder()
             .WithTopic(topic)
             .WithPayload(payload)
@@ -180,78 +153,23 @@ public class ClientService : IPublisher, ISubscriber
 
             Log.Information("Subscribed to topic: {Topic}", topic);
 
-            // Determine whether the payload is a string or a file
-            if (IsTextPayload(payload))
-            {
-                // If it's a string, decode it
-                var message = Encoding.UTF8.GetString(payload);
-                Log.Information("Received message: {Message}", message);
-            }
-            else
-            {
-                // If it's binary (assumed to be a file), save it
-                try
-                {
-                    string fileExtension = GetFileExtension(payload);
-                    Log.Information($"{fileExtension}");
-                    var uniqueFileName = $"received_file{fileExtension}";
-                    var filePath = Path.Combine(_mqttSettings.SavedFilePath, uniqueFileName);
-
-                    // Ensure the directory exists
-                    if (!string.IsNullOrWhiteSpace(_mqttSettings.SavedFilePath))
+            var handlePayload = new HandleSubscriber(_mqttSettings);
+            
+            try
                     {
-                        var directory = Path.GetDirectoryName(filePath);
-                        if (!Directory.Exists(directory))
-                        {
-                            Directory.CreateDirectory(directory);
-                            Log.Information("Directory created: {Directory}", directory);
-                        }
-
-                        // Write the received payload to a new file
-                        await File.WriteAllBytesAsync(filePath, payload);
-                        Log.Information("Received file and saved to: {FilePath}", filePath);
+                        await handlePayload.ReadFileAsync(payload);
+     
                     }
-                    else
-                    {
-                        Log.Error("Saved file path is null or empty.");
-                    }
-                }
                 catch (Exception ex)
-                {
+                    {
                     Log.Error("Error processing received message: {Message}", ex.Message);
-                }
-            }
+                    }
+            
         };
     }
 
 
-    private string GetFileExtension(byte[] payload)
-    {
-        
-        if (payload.Length >= 4)
-        {
-            // Check for common image file signatures (magic numbers)
-            if (payload[0] == 0xFF && payload[1] == 0xD8) // JPEG
-            {
-                return ".jpg";
-            }
-            else if (payload[0] == 0x89 && payload[1] == 0x50 && payload[2] == 0x4E && payload[3] == 0x47) // PNG
-            {
-                return ".png";
-            }
-            else if (payload[0] == 0x47 && payload[1] == 0x49 && payload[2] == 0x46) // GIF
-            {
-                return ".gif";
-            }
-            
-        }
-
-        // Default to .bin if file type is not recognized
-        return ".bin";
-    }
-
-
-    // Helper method to determine if the payload is text or binary
+    
     private bool IsTextPayload(byte[] payload)
     {
         // Check if all bytes are within the ASCII printable range (32 to 126)
