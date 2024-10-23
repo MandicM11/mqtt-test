@@ -227,7 +227,7 @@ public class ClientService : IPublisher, ISubscriber
 
     private string GetFileExtension(byte[] payload)
     {
-        // Simple checks to determine the file type based on magic numbers
+        
         if (payload.Length >= 4)
         {
             // Check for common image file signatures (magic numbers)
@@ -243,7 +243,7 @@ public class ClientService : IPublisher, ISubscriber
             {
                 return ".gif";
             }
-            // Add more checks for other file types as needed
+            
         }
 
         // Default to .bin if file type is not recognized
