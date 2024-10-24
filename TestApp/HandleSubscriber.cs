@@ -13,43 +13,49 @@ namespace TestApp
 {
     public class HandleSubscriber
     {
-        
+
         private readonly MqttSettings _mqttSettings;
 
         public HandleSubscriber(MqttSettings mqttSettings)
         {
             _mqttSettings = mqttSettings;
         }
-        public async Task ReadFileAsync(byte[] payload) {
-            var subscribeHelpers = new SubscriberHelpers();
-               
-                    string fileExtension = subscribeHelpers.GetFileExtension(payload);
+        public async Task ReadFileAsync(byte[] payload)
+        {
+            var subscribeHelpers = new Helpers();
+            
 
-                    Log.Information($"{fileExtension}");
-                    var uniqueFileName = $"received_file{fileExtension}";
-                    var filePath = Path.Combine(_mqttSettings.SavedFilePath, uniqueFileName);
+            string fileExtension = subscribeHelpers.GetFileExtension(payload);
 
-                    // Ensure the directory exists
-                    if (!string.IsNullOrWhiteSpace(_mqttSettings.SavedFilePath))
-                    {
-                        var directory = Path.GetDirectoryName(filePath);
-                        if (!Directory.Exists(directory))
-                        {
-                            Directory.CreateDirectory(directory);
-                            Log.Information("Directory created: {Directory}", directory);
-                        }
+            Log.Information($"{fileExtension}");
+            var uniqueFileName = $"received_file{fileExtension}";
+            var filePath = Path.Combine(_mqttSettings.SavedFilePath, uniqueFileName);
+          
 
-                        // Write the received payload to a new file
-                        await File.WriteAllBytesAsync(filePath, payload);
-                        Log.Information("Received file and saved to: {FilePath}", filePath);
-                    }
-                    else
-                    {
-                        Log.Error("Saved file path is null or empty.");
-                    }
+            // Ensure the directory exists
+            if (!string.IsNullOrWhiteSpace(_mqttSettings.SavedFilePath))
+            {
+                var directory = Path.GetDirectoryName(filePath);
+                if (!Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                    Log.Information("Directory created: {Directory}", directory);
                 }
-               
+                
+                
+                    await File.WriteAllBytesAsync(filePath, payload);
+                    Log.Information("Received file and saved to: {FilePath}", filePath);
+                
+                  
+                }
+            
+            else
+            {
+                Log.Warning("The SavedFilePath is invalid or empty.");
             }
         }
+    }
+}
 
 
+//publisher has to read the file before he sends it and detect the change

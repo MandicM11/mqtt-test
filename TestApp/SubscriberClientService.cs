@@ -10,7 +10,8 @@ using TestApp.MqttClientInterfaces;
 using System.Threading;
 using TestApp;
 
-public class ClientService : IPublisher, ISubscriber
+
+public class SubscriberClientService : ISubscriber
 {
     private readonly MqttSettings _mqttSettings;
     private readonly IMqttClient _mqttClient;
@@ -18,7 +19,7 @@ public class ClientService : IPublisher, ISubscriber
     private bool _isConnecting;
     private readonly SemaphoreSlim _reconnectSemaphore = new SemaphoreSlim(1, 1);
 
-    public ClientService(MqttSettings mqttSettings)
+    public SubscriberClientService(MqttSettings mqttSettings)
     {
         _mqttSettings = mqttSettings;
         var factory = new MqttFactory();
@@ -39,9 +40,9 @@ public class ClientService : IPublisher, ISubscriber
             .WithTcpServer(_mqttSettings.Broker, _mqttSettings.Port)
             .WithClientId(Guid.NewGuid().ToString())
             .WithCredentials(_mqttSettings.Username, _mqttSettings.Password)
-            
+
             .Build();
-        
+
 
         try
         {
@@ -49,19 +50,13 @@ public class ClientService : IPublisher, ISubscriber
             if (connectResult.ResultCode == MqttClientConnectResultCode.Success)
             {
                 Log.Information("Connected to MQTT broker as {Role}", _mqttSettings.Role);
+                while (true)
+                {
 
-                if (_mqttSettings.Role == "Subscriber")
-                {
-                    // Pass a callback to handle message or file reception
                     await SubscribeAsync(_mqttSettings.Topic);
-                    
+                    await Task.Delay(3000);
+
                 }
-                else if (_mqttSettings.Role == "Publisher")
-                {
-                    await PublishAsync(_mqttSettings.Topic, _mqttSettings.PublishedFilePath);
-                        
-                }    
-                
 
             }
             else
@@ -125,26 +120,11 @@ public class ClientService : IPublisher, ISubscriber
         }
     }
 
-    // Implementing PublishAsync 
-    public async Task PublishAsync(string topic, object data)
-    {
-       
-        var handlePublisher = new HandlePublisher();
-        byte[] payload = await handlePublisher.HandlePayloadAsync(data);
-        var mqttMessage = new MqttApplicationMessageBuilder()
-            .WithTopic(topic)
-            .WithPayload(payload)
-            .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
-            .Build();
-
-        await _mqttClient.PublishAsync(mqttMessage);
-        Log.Information("Published data to topic: {Topic}", topic);
-    }
-
 
     // Subscriber implementation
     public async Task SubscribeAsync(string topic)
     {
+
         await _mqttClient.SubscribeAsync(topic);
 
         _mqttClient.ApplicationMessageReceivedAsync += async e =>
@@ -154,28 +134,20 @@ public class ClientService : IPublisher, ISubscriber
             Log.Information("Subscribed to topic: {Topic}", topic);
 
             var handlePayload = new HandleSubscriber(_mqttSettings);
-            
+
             try
-                    {
-                        await handlePayload.ReadFileAsync(payload);
-     
-                    }
-                catch (Exception ex)
-                    {
-                    Log.Error("Error processing received message: {Message}", ex.Message);
-                    }
-            
+            {
+                await handlePayload.ReadFileAsync(payload);
+
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Error processing received message: {Message}", ex.Message);
+            }
+
         };
+
     }
-
-
-    
-    private bool IsTextPayload(byte[] payload)
-    {
-        // Check if all bytes are within the ASCII printable range (32 to 126)
-        return payload.All(b => b >= 32 && b <= 126);
-    }
-
 
     public async Task DisconnectAsync()
     {

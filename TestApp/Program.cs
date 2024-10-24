@@ -24,11 +24,21 @@ class Program
             var mqttSettings = new MqttSettings();
             config.GetSection("MqttSettings").Bind(mqttSettings);
 
-            var mqttClientService = new ClientService(mqttSettings);
-            await mqttClientService.ConnectAsync();
-            await Task.Delay(Timeout.Infinite);
+            var mqttPublisherClientService = new PublisherClientService(mqttSettings);
+            var mqttSubscriberClientService = new SubscriberClientService(mqttSettings);
+            if (mqttSettings.Role == "Publisher")
+            {
+                await mqttPublisherClientService.ConnectAsync();
+                await Task.Delay(Timeout.Infinite);
+            }
+            else
+            {
+                await mqttSubscriberClientService.ConnectAsync();
+                await Task.Delay(Timeout.Infinite);
+            }
 
-           
+
+
 
 
 

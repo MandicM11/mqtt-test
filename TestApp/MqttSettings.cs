@@ -18,6 +18,8 @@ namespace TestApp
         public string PublishedFilePath {  get; set; }
         public string SavedFilePath {  get; set; }
 
+        public string LocalFilePath {  get; set; }
+
     }
 
 }
