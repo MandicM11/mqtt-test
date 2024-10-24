@@ -50,13 +50,12 @@ public class SubscriberClientService : ISubscriber
             if (connectResult.ResultCode == MqttClientConnectResultCode.Success)
             {
                 Log.Information("Connected to MQTT broker as {Role}", _mqttSettings.Role);
-                while (true)
-                {
+                
 
                     await SubscribeAsync(_mqttSettings.Topic);
                     await Task.Delay(3000);
 
-                }
+                
 
             }
             else
