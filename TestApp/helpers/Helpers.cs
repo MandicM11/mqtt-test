@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace TestApp.helpers
 {
-    public class SubscriberHelpers
+    public class Helpers
     {
 
         public string GetFileExtension(byte[] payload)
