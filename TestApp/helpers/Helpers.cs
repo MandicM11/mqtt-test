@@ -27,8 +27,15 @@ namespace TestApp.helpers
                 {
                     return ".gif";
                 }
+
                 else if (IsTextPayload(payload))
                 {
+                    
+                    var text = Encoding.UTF8.GetString(payload);
+                    if (text.TrimStart().StartsWith("{") || text.TrimStart().StartsWith("["))
+                    {
+                        return ".json";
+                    }
                     return ".txt";
                 }
 

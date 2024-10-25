@@ -53,7 +53,7 @@ public class PublisherClientService : IPublisher
                 while (true)
                 {
 
-                    await PublishAsync(_mqttSettings.Topic, _mqttSettings.PublishedFilePath);
+                    await PublishAsync(_mqttSettings.Topic, _mqttSettings.DbChangesFilePath);
                     await Task.Delay(3000);
 
                 }

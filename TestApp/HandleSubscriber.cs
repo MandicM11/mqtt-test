@@ -23,7 +23,7 @@ namespace TestApp
         public async Task ReadFileAsync(byte[] payload)
         {
             var subscribeHelpers = new Helpers();
-            
+            DbUpdater dbUpdater = new DbUpdater(_mqttSettings.ConnectionString);
 
             string fileExtension = subscribeHelpers.GetFileExtension(payload);
 
@@ -41,13 +41,23 @@ namespace TestApp
                     Directory.CreateDirectory(directory);
                     Log.Information("Directory created: {Directory}", directory);
                 }
-                
-                
-                    await File.WriteAllBytesAsync(filePath, payload);
-                    Log.Information("Received file and saved to: {FilePath}", filePath);
-                
-                  
+
+
+                //await File.WriteAllBytesAsync(filePath, payload);
+                //Log.Information("Received file and saved to: {FilePath}", filePath);
+
+                try
+                {
+                    await dbUpdater.ApplyChangesAsync(_mqttSettings.DbChangesFilePath);
+                    Console.WriteLine("Changes applied successfully.");
                 }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error applying changes: {ex.Message}");
+                }
+
+
+            }
             
             else
             {
