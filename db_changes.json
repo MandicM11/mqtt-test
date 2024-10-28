@@ -1,20 +1,13 @@
 {
-  "inserts": [
-    { "Id": 7,
-    "RoomName": "Laundry Room",
-    "CurrentTemperature": 17,
-    "CurrentTime": "2024-10-25T09:21:06",
-    "CreatedAt": "2024-10-25T09:21:06", 
-    "UpdatedAt": "2024-10-25T09:22:06" }
+  "Inserts": [
+    {
+      "Id": 10,
+      "RoomName": "Storage",
+      "CurrentTime": "2024-10-25T08:37:06Z",
+      "CurrentTemperature": 23.0,
+      "CreatedAt": "2024-10-28T10:32:06Z",
+      "UpdatedAt": "2024-10-28T09:13:06Z"
+    }
   ],
-  "updates": [
-    { "Id": 5,
-    "RoomName": "Toilet",
-    "CurrentTemperature": 24,
-    "CurrentTime": "2024-10-25T09:22:36",
-    "CreatedAt": "2024-10-25T09:22:36", 
-    "UpdatedAt": "2024-10-25T09:23:06" }
-  ]
+  "Updates": []
 }
-
-

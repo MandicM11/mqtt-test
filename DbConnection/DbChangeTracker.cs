@@ -13,7 +13,8 @@ public class DbChangeTracker
     public DbChangeTracker(string connectionString)
     {
         _connectionString = connectionString;
-        _lastSyncTime = DateTime.UtcNow.AddHours(-0.005);
+        // Initialize _lastSyncTime, possibly load it from persistent storage if needed
+       
     }
 
     public async Task<string> GenerateDeltaAsync()
@@ -22,8 +23,11 @@ public class DbChangeTracker
         {
             Inserts = await GetNewRowsAsync(),
             Updates = await GetUpdatedRowsAsync(),
-            Deletes = await GetDeletedRowsAsync()
+            //Deletes = await GetDeletedRowsAsync()
         };
+
+        // Update the last sync time after collecting changes
+        _lastSyncTime = DateTime.UtcNow.AddMinutes(-1);
 
         return JsonConvert.SerializeObject(changes, Formatting.Indented);
     }
@@ -32,41 +36,50 @@ public class DbChangeTracker
     {
         var deltaJson = await GenerateDeltaAsync();
         await File.WriteAllTextAsync(filePath, deltaJson);
+
+        // Optionally save _lastSyncTime to persistent storage here
     }
 
     private async Task<List<Dictionary<string, object>>> GetNewRowsAsync()
     {
-        return await GetRowsAsync("SELECT * FROM public.\"RoomTemperatures\" WHERE created_at > @lastSyncTime");
+        Console.WriteLine(_lastSyncTime);
+        return await GetRowsAsync("SELECT * FROM public.\"RoomTemperatures\" WHERE \"CreatedAt\" > @lastSyncTime");
+        
+        
+
     }
 
     private async Task<List<Dictionary<string, object>>> GetUpdatedRowsAsync()
     {
-        return await GetRowsAsync("SELECT * FROM public.\"RoomTemperatures\" WHERE last_modified > @lastSyncTime AND updated_flag = true");
+        Console.WriteLine("Last sync time", _lastSyncTime);
+        return await GetRowsAsync("SELECT * FROM public.\"RoomTemperatures\" WHERE \"UpdatedAt\" > @lastSyncTime");
+        
     }
 
-    private async Task<List<int>> GetDeletedRowsAsync()
-    {
-        var query = "SELECT id FROM deleted_items WHERE deleted_time > @lastSyncTime";
-        var deletedIds = new List<int>();
+    //private async Task<List<int>> GetDeletedRowsAsync()
+    //{
+    //    var query = "SELECT id FROM deleted_items WHERE deleted_time > @lastSyncTime";
+    //    var deletedIds = new List<int>();
 
-        using (var connection = new NpgsqlConnection(_connectionString))
-        {
-            await connection.OpenAsync();
-            using (var command = new NpgsqlCommand(query, connection))
-            {
-                command.Parameters.AddWithValue("@lastSyncTime", _lastSyncTime);
+    //    using (var connection = new NpgsqlConnection(_connectionString))
+    //    {
+    //        await connection.OpenAsync();
+    //        using (var command = new NpgsqlCommand(query, connection))
+    //        {
+    //            command.Parameters.AddWithValue("@lastSyncTime", _lastSyncTime);
 
-                using (var reader = await command.ExecuteReaderAsync())
-                {
-                    while (await reader.ReadAsync())
-                    {
-                        deletedIds.Add(reader.GetInt32(0));
-                    }
-                }
-            }
-        }
-        return deletedIds;
-    }
+    //            using (var reader = await command.ExecuteReaderAsync())
+    //            {
+    //                while (await reader.ReadAsync())
+    //                {
+    //                    deletedIds.Add(reader.GetInt32(0));
+    //                }
+    //            }
+    //        }
+    //    }
+    //    return deletedIds;
+    //}
+
 
     private async Task<List<Dictionary<string, object>>> GetRowsAsync(string query)
     {
