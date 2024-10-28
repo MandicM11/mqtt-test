@@ -1,13 +1,13 @@
 {
-  "Inserts": [
+  "Inserts": [],
+  "Updates": [
     {
-      "Id": 10,
-      "RoomName": "Storage",
-      "CurrentTime": "2024-10-25T08:37:06Z",
-      "CurrentTemperature": 23.0,
-      "CreatedAt": "2024-10-28T10:32:06Z",
-      "UpdatedAt": "2024-10-28T09:13:06Z"
+      "Id": 1,
+      "RoomName": "Toilet",
+      "CurrentTemperature": 21.0,
+      "CurrentTime": "2024-10-28T14:22:58Z",
+      "CreatedAt": "2024-10-28T14:22:58Z",
+      "UpdatedAt": "2024-10-28T15:39:58Z"
     }
-  ],
-  "Updates": []
+  ]
 }

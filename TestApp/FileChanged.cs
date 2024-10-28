@@ -4,18 +4,21 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TestApp.MqttClientInterfaces;
+using static System.Runtime.InteropServices.JavaScript.JSType;
+using static TestApp.MqttClientInterfaces.IFileChanged;
 
 namespace TestApp
 {
-    public class HandlePublisher
+    public class FileChanged: IFileChanged
     {
         private readonly MqttSettings _mqttSettings;
 
-        public HandlePublisher(MqttSettings mqttSettings)
+        public FileChanged(MqttSettings mqttSettings)
         {
             _mqttSettings = mqttSettings;
         }
-        public async Task<byte[]> HandlePayloadAsync(object data)
+        public async Task<byte[]> ReadPayloadAsync(object data)
         {
             byte[] payload;
             
@@ -47,7 +50,21 @@ namespace TestApp
             return payload;
         }
 
-        public async Task<bool> filesChangedAsync(byte[] payload, byte[] lastPublishedPayload)
+
+        public async Task<bool> FileChangedAsync (object data)
+        {
+            var fileChange = false;
+            byte[] payload = await ReadPayloadAsync(data);
+            byte[] lastPublishedPayload;
+
+
+            lastPublishedPayload = await File.ReadAllBytesAsync(_mqttSettings.LocalFilePath);
+            fileChange = await compareFilesAsync(payload, lastPublishedPayload);
+            return fileChange;
+        }
+
+
+        public async Task<bool> compareFilesAsync(byte[] payload, byte[] lastPublishedPayload)
         {
             var fileChanged = false;
             try

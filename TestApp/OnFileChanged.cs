@@ -11,19 +11,19 @@ using System.Security.Cryptography.X509Certificates;
 
 namespace TestApp
 {
-    public class HandleSubscriber
+    public class OnFileChanged: IOnFileChanged
     {
-
+        private readonly AppDbContext _appDbContext;
         private readonly MqttSettings _mqttSettings;
 
-        public HandleSubscriber(MqttSettings mqttSettings)
+        public OnFileChanged(MqttSettings mqttSettings)
         {
             _mqttSettings = mqttSettings;
         }
         public async Task ReadFileAsync(byte[] payload)
         {
             var subscribeHelpers = new Helpers();
-            DbUpdater dbUpdater = new DbUpdater(_mqttSettings.ConnectionString);
+            DbUpdater dbUpdater = new DbUpdater(_appDbContext);
 
             string fileExtension = subscribeHelpers.GetFileExtension(payload);
 
@@ -42,12 +42,9 @@ namespace TestApp
                     Log.Information("Directory created: {Directory}", directory);
                 }
 
-
-                //await File.WriteAllBytesAsync(filePath, payload);
-                //Log.Information("Received file and saved to: {FilePath}", filePath);
-
                 try
                 {
+                    
                     await dbUpdater.ApplyChangesAsync(_mqttSettings.DbChangesFilePath);
                     Console.WriteLine("Changes applied successfully.");
                 }

@@ -11,9 +11,9 @@ namespace DbConnection
     {
         public int Id { get; set; }
         public string RoomName { get; set; }
-        public DateTime CurrentTime { get; set; }
-        public int CurrentTemperature { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public DateTime UpdatedAt { get; set; }
+        public DateTime? CurrentTime { get; set; }
+        public double? CurrentTemperature { get; set; }
+        public DateTime? CreatedAt { get; set; }
+        public DateTime? UpdatedAt { get; set; }
     }
 }

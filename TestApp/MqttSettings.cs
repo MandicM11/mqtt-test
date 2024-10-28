@@ -21,6 +21,8 @@ namespace TestApp
         public string LocalFilePath {  get; set; }
         public string DbChangesFilePath { get; set; }
         public string ConnectionString { get; set; }
+        public string PublisherConnectionString { get; set; }
+        public string SubscriberConnectionString {  get; set; }
 
     }
 

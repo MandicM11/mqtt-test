@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 using Serilog;
 using TestApp;
@@ -13,61 +14,64 @@ class Program
             .WriteTo.Console()
             .CreateLogger();
 
-        var connectionString = "Host=localhost;Database=Mqtt;Username=postgres;Password=1234";
-        DbUpdater dbUpdater = new DbUpdater(connectionString);
-        DbChangeTracker dbChangeTracker = new DbChangeTracker(connectionString);
+        // Load configuration from appsettings.json
+        var config = new ConfigurationBuilder()
+            .SetBasePath(Directory.GetCurrentDirectory())
+            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+            .Build();
+
+        // Bind the MqttSettings section to the MqttSettings class
+        var mqttSettings = config.GetSection("MqttSettings").Get<MqttSettings>();
+        var connectionString = mqttSettings.PublisherConnectionString;  // Depending on the role
+        var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
+        optionsBuilder.UseNpgsql(connectionString); // Use the dynamically loaded connection string
+
+        var appDbContext = new AppDbContext(optionsBuilder.Options, connectionString);
+
+
+        // Pass the connection string to DbUpdater and DbChangeTracker
+        DbUpdater dbUpdater = new DbUpdater(appDbContext);
+        DbChangeTracker dbChangeTracker = new DbChangeTracker(appDbContext);
 
         TimeSpan trackingInterval = TimeSpan.FromMinutes(0.1);
 
         // Task for MQTT connection
-        Task mqttTask = RunMqttClientAsync();
+        Task mqttTask = RunMqttClientAsync(mqttSettings);
 
         // Task for database tracking loop
-        Task trackingTask = RunTrackingLoopAsync(dbUpdater, dbChangeTracker, trackingInterval);
+        Task trackingTask = RunTrackingLoopAsync(dbUpdater, dbChangeTracker, trackingInterval, mqttSettings);
 
         await Task.WhenAll(mqttTask, trackingTask);
     }
 
-    private static async Task RunTrackingLoopAsync(DbUpdater dbUpdater, DbChangeTracker dbChangeTracker, TimeSpan trackingInterval)
+    private static async Task RunTrackingLoopAsync(DbUpdater dbUpdater, DbChangeTracker dbChangeTracker, TimeSpan trackingInterval, MqttSettings mqttSettings)
     {
+        
         while (true)
         {
             try
             {
-                string filePath = "C:\\Users\\studentinit\\Documents\\GitHub\\mqtt-test\\db_changes.json";
-
-                // Save database changes to delta file
-                await dbChangeTracker.SaveDeltaToFileAsync(filePath);
-                //Console.WriteLine("Delta changes saved successfully.");
-
-                // Apply delta to the database 
-                await dbUpdater.ApplyChangesAsync(filePath);
+                await dbChangeTracker.SaveDeltaToFileAsync(mqttSettings.DbChangesFilePath);
+                await dbUpdater.ApplyChangesAsync(mqttSettings.DbChangesFilePath);
             }
             catch (Exception ex)
             {
                 Log.Error("An error occurred while tracking changes: {Message}", ex.Message);
             }
 
-            // Wait for the next interval
             await Task.Delay(trackingInterval);
         }
     }
 
-    private static async Task RunMqttClientAsync()
+    private static async Task RunMqttClientAsync(MqttSettings mqttSettings)
     {
         try
         {
-            // Read configuration from appsettings.json
-            var config = new ConfigurationBuilder()
-                .SetBasePath(Directory.GetCurrentDirectory())
-                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-                .Build();
+            var onFileChanged = new OnFileChanged(mqttSettings);
+            var fileChanged = new FileChanged(mqttSettings);
 
-            var mqttSettings = new MqttSettings();
-            config.GetSection("MqttSettings").Bind(mqttSettings);
-
-            var mqttPublisherClientService = new PublisherClientService(mqttSettings);
-            var mqttSubscriberClientService = new SubscriberClientService(mqttSettings);
+            var mqttPublisherClientService = new PublisherClientService(mqttSettings, fileChanged);
+            var mqttSubscriberClientService = new SubscriberClientService(mqttSettings, onFileChanged);
 
             if (mqttSettings.Role == "Publisher")
             {
@@ -78,7 +82,6 @@ class Program
                 await mqttSubscriberClientService.ConnectAsync();
             }
 
-            // Keeps the MQTT task running indefinitely
             await Task.Delay(Timeout.Infinite);
         }
         catch (Exception ex)

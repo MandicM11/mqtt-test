@@ -11,8 +11,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DbConnection.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20241024125414_Init")]
-    partial class Init
+    [Migration("20241028142127_initPublisher")]
+    partial class initPublisher
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -32,20 +32,20 @@ namespace DbConnection.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<DateTime>("CreatedAt")
+                    b.Property<DateTime?>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<int>("CurrentTemperature")
-                        .HasColumnType("integer");
+                    b.Property<double?>("CurrentTemperature")
+                        .HasColumnType("double precision");
 
-                    b.Property<DateTime>("CurrentTime")
+                    b.Property<DateTime?>("CurrentTime")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("RoomName")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<DateTime>("UpdatedAt")
+                    b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");

@@ -15,19 +15,20 @@ public class SubscriberClientService : ISubscriber
 {
     private readonly MqttSettings _mqttSettings;
     private readonly IMqttClient _mqttClient;
-    //private readonly HandlePayload _handlePayload;
+    private readonly OnFileChanged _onFileChanged;
     private bool _isConnecting;
     private readonly SemaphoreSlim _reconnectSemaphore = new SemaphoreSlim(1, 1);
 
-    public SubscriberClientService(MqttSettings mqttSettings)
+    public SubscriberClientService(MqttSettings mqttSettings, OnFileChanged onFileChanged)
     {
         _mqttSettings = mqttSettings;
         var factory = new MqttFactory();
         _mqttClient = factory.CreateMqttClient();
-
-        // Attach the Disconnected event handler
+        _onFileChanged = onFileChanged;
         _mqttClient.DisconnectedAsync += HandleDisconnectedAsync;
     }
+
+  
 
     public async Task ConnectAsync()
     {
@@ -132,11 +133,11 @@ public class SubscriberClientService : ISubscriber
 
             Log.Information("Subscribed to topic: {Topic}", topic);
 
-            var handlePayload = new HandleSubscriber(_mqttSettings);
+            
 
             try
             {
-                await handlePayload.ReadFileAsync(payload);
+                await _onFileChanged.ReadFileAsync(payload);
 
             }
             catch (Exception ex)

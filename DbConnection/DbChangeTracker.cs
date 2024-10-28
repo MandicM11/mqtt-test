@@ -1,20 +1,20 @@
 ﻿using Newtonsoft.Json;
-using Npgsql;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 
 public class DbChangeTracker
 {
-    private readonly string _connectionString;
+    private readonly AppDbContext _context;
     private DateTime _lastSyncTime;
 
-    public DbChangeTracker(string connectionString)
+    public DbChangeTracker(AppDbContext context)
     {
-        _connectionString = connectionString;
-        // Initialize _lastSyncTime, possibly load it from persistent storage if needed
-       
+        _context = context;
+        _lastSyncTime = DateTime.UtcNow.AddMinutes(-1);
     }
 
     public async Task<string> GenerateDeltaAsync()
@@ -23,11 +23,10 @@ public class DbChangeTracker
         {
             Inserts = await GetNewRowsAsync(),
             Updates = await GetUpdatedRowsAsync(),
-            //Deletes = await GetDeletedRowsAsync()
+            // Deletes = await GetDeletedRowsAsync()
         };
 
-        // Update the last sync time after collecting changes
-        _lastSyncTime = DateTime.UtcNow.AddMinutes(-1);
+        _lastSyncTime = DateTime.UtcNow;
 
         return JsonConvert.SerializeObject(changes, Formatting.Indented);
     }
@@ -36,76 +35,37 @@ public class DbChangeTracker
     {
         var deltaJson = await GenerateDeltaAsync();
         await File.WriteAllTextAsync(filePath, deltaJson);
-
-        // Optionally save _lastSyncTime to persistent storage here
     }
 
     private async Task<List<Dictionary<string, object>>> GetNewRowsAsync()
     {
-        Console.WriteLine(_lastSyncTime);
-        return await GetRowsAsync("SELECT * FROM public.\"RoomTemperatures\" WHERE \"CreatedAt\" > @lastSyncTime");
-        
-        
-
+        return await _context.RoomTemperatures
+            .Where(r => r.CreatedAt > _lastSyncTime)
+            .Select(r => new Dictionary<string, object>
+            {
+                { "Id", r.Id },
+                { "RoomName", r.RoomName },
+                { "CurrentTemperature", r.CurrentTemperature },
+                { "CurrentTime", r.CurrentTime },
+                { "CreatedAt", r.CreatedAt },
+                { "UpdatedAt", r.UpdatedAt }
+            })
+            .ToListAsync();
     }
 
     private async Task<List<Dictionary<string, object>>> GetUpdatedRowsAsync()
     {
-        Console.WriteLine("Last sync time", _lastSyncTime);
-        return await GetRowsAsync("SELECT * FROM public.\"RoomTemperatures\" WHERE \"UpdatedAt\" > @lastSyncTime");
-        
-    }
-
-    //private async Task<List<int>> GetDeletedRowsAsync()
-    //{
-    //    var query = "SELECT id FROM deleted_items WHERE deleted_time > @lastSyncTime";
-    //    var deletedIds = new List<int>();
-
-    //    using (var connection = new NpgsqlConnection(_connectionString))
-    //    {
-    //        await connection.OpenAsync();
-    //        using (var command = new NpgsqlCommand(query, connection))
-    //        {
-    //            command.Parameters.AddWithValue("@lastSyncTime", _lastSyncTime);
-
-    //            using (var reader = await command.ExecuteReaderAsync())
-    //            {
-    //                while (await reader.ReadAsync())
-    //                {
-    //                    deletedIds.Add(reader.GetInt32(0));
-    //                }
-    //            }
-    //        }
-    //    }
-    //    return deletedIds;
-    //}
-
-
-    private async Task<List<Dictionary<string, object>>> GetRowsAsync(string query)
-    {
-        var rows = new List<Dictionary<string, object>>();
-
-        using (var connection = new NpgsqlConnection(_connectionString))
-        {
-            await connection.OpenAsync();
-            using (var command = new NpgsqlCommand(query, connection))
+        return await _context.RoomTemperatures
+            .Where(r => r.UpdatedAt > _lastSyncTime)
+            .Select(r => new Dictionary<string, object>
             {
-                command.Parameters.AddWithValue("@lastSyncTime", _lastSyncTime);
-
-                using (var reader = await command.ExecuteReaderAsync())
-                {
-                    while (await reader.ReadAsync())
-                    {
-                        var row = new Dictionary<string, object>();
-                        for (var i = 0; i < reader.FieldCount; i++)
-                        {
-                            row[reader.GetName(i)] = reader.GetValue(i);
-                        }
-                        rows.Add(row);
-                    }
-                }
-            }
-        }
-        return rows;
+                { "Id", r.Id },
+                { "RoomName", r.RoomName },
+                { "CurrentTemperature", r.CurrentTemperature },
+                { "CurrentTime", r.CurrentTime },
+                { "CreatedAt", r.CreatedAt },
+                { "UpdatedAt", r.UpdatedAt }
+            })
+            .ToListAsync();
     }
 }

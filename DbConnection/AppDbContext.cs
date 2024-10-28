@@ -3,11 +3,20 @@ using Microsoft.EntityFrameworkCore;
 
 public class AppDbContext : DbContext
 {
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+    private readonly string _connectionString;
+
+    public AppDbContext(DbContextOptions<AppDbContext> options, string connectionString)
+        : base(options)
+    {
+        _connectionString = connectionString;
+    }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        optionsBuilder.UseNpgsql("Host=localhost;Database=Mqtt;Username=postgres;Password=1234");
+        if (!optionsBuilder.IsConfigured)
+        {
+            optionsBuilder.UseNpgsql(_connectionString);
+        }
     }
 
     public DbSet<RoomTemperature> RoomTemperatures { get; set; }

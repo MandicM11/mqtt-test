@@ -7,9 +7,10 @@ public class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
     {
         var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
 
-        // Provide your PostgreSQL connection string here
-        optionsBuilder.UseNpgsql("Host=localhost;Database=Mqtt;Username=postgres;Password=1234");
+        // Example of handling a default connection string for design-time purposes
+        string connectionString = "Host=localhost;Database=Mqtt;Username=postgres;Password=1234";
+        optionsBuilder.UseNpgsql(connectionString);
 
-        return new AppDbContext(optionsBuilder.Options);
+        return new AppDbContext(optionsBuilder.Options, connectionString);
     }
 }

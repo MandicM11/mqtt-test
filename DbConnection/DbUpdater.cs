@@ -1,123 +1,110 @@
 ﻿using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
-using Npgsql;
+using Microsoft.EntityFrameworkCore;
+using DbConnection;
 
 public class DbUpdater
 {
-    private readonly string _connectionString;
+    private readonly AppDbContext _context;
 
-    public DbUpdater(string connectionString)
+    public DbUpdater(AppDbContext context)
     {
-        _connectionString = connectionString;
+        _context = context;
     }
 
-    // Main method to apply changes from JSON delta file to the database
     public async Task ApplyChangesAsync(string deltaJsonPath)
     {
-        // Read and deserialize JSON changes
         string jsonContent = await File.ReadAllTextAsync(deltaJsonPath);
-        var changes = JsonConvert.DeserializeObject<Delta>(jsonContent) ?? new Delta
-        {
-            Inserts = new List<Dictionary<string, object>>(),
-            Updates = new List<Dictionary<string, object>>(),
-            Deletes = new List<int>()
-        };
+        var changes = JsonConvert.DeserializeObject<Delta>(jsonContent) ?? new Delta();
 
-        // Process inserts and updates
         foreach (var insert in changes.Inserts)
         {
-            await InsertOrUpdateRowAsync(insert);
+            await InsertRowAsync(insert);
         }
 
         foreach (var update in changes.Updates)
         {
-            await InsertOrUpdateRowAsync(update);
+            await UpdateRowAsync(update);
         }
 
-        // Process deletes
         foreach (var deleteId in changes.Deletes)
         {
             await DeleteRowAsync(deleteId);
         }
+
+        await _context.SaveChangesAsync();
     }
 
-    // Method to read database changes with the `updated_flag`
-    //public async Task<List<Dictionary<string, object>>> ReadDbChangesAsync()
-    //{
-    //    var changes = new List<Dictionary<string, object>>();
-    //    using (var connection = new NpgsqlConnection(_connectionString))
-    //    {
-    //        await connection.OpenAsync();
-    //        var query = @"SELECT * FROM public.""RoomTemperatures"" WHERE updated_flag = true";
-
-    //        using (var command = new NpgsqlCommand(query, connection))
-    //        using (var reader = await command.ExecuteReaderAsync())
-    //        {
-    //            while (await reader.ReadAsync())
-    //            {
-    //                var row = new Dictionary<string, object>();
-    //                for (int i = 0; i < reader.FieldCount; i++)
-    //                {
-    //                    row[reader.GetName(i)] = reader.GetValue(i);
-    //                }
-    //                changes.Add(row);
-    //            }
-    //        }
-    //    }
-    //    return changes;
-    //}
-
-    // Helper method to insert or update rows based on primary key conflict
-    private async Task InsertOrUpdateRowAsync(Dictionary<string, object> rowData)
+    private async Task InsertRowAsync(Dictionary<string, object> rowData)
     {
-        using (var connection = new NpgsqlConnection(_connectionString))
+        int id = Convert.ToInt32(rowData["Id"]);
+
+        var newEntity = new RoomTemperature
         {
-            await connection.OpenAsync();
-            var query = @"
-            INSERT INTO public.""RoomTemperatures"" (""Id"", ""RoomName"", ""CurrentTemperature"", ""CurrentTime"", ""CreatedAt"", ""UpdatedAt"") 
-            VALUES (@Id, @RoomName, @CurrentTemperature, @CurrentTime, @CreatedAt, @UpdatedAt) 
-            ON CONFLICT (""Id"") 
-            DO UPDATE SET 
-                ""RoomName"" = EXCLUDED.""RoomName"", 
-                ""CurrentTemperature"" = EXCLUDED.""CurrentTemperature"", 
-                ""CurrentTime"" = EXCLUDED.""CurrentTime"", 
-                ""UpdatedAt"" = EXCLUDED.""UpdatedAt""";
+            Id = id,
+            RoomName = rowData.ContainsKey("RoomName") ? (string)rowData["RoomName"] : null,
+            CurrentTemperature = rowData.ContainsKey("CurrentTemperature") && rowData["CurrentTemperature"] != null
+                                ? (double?)Convert.ToDouble(rowData["CurrentTemperature"])
+                                : null,
+            CurrentTime = rowData.ContainsKey("CurrentTime") ? (DateTime)rowData["CurrentTime"] : DateTime.UtcNow,
+            CreatedAt  = rowData.ContainsKey("CreatedAt") ? (DateTime)rowData["CreatedAt"] : DateTime.UtcNow,
+            UpdatedAt  = rowData.ContainsKey("UpdatedAt") ? (DateTime)rowData["UpdatedAt"] : DateTime.UtcNow,
+        };
 
-            using (var command = new NpgsqlCommand(query, connection))
+        await _context.RoomTemperatures.AddAsync(newEntity);
+    }
+
+    private async Task UpdateRowAsync(Dictionary<string, object> rowData)
+    {
+        int id = Convert.ToInt32(rowData["Id"]);
+        var roomTemp = await _context.RoomTemperatures.FindAsync(id);
+
+        if (roomTemp != null)
+        {
+            // Update fields conditionally based on the existence of the key in rowData
+            roomTemp.RoomName = rowData.ContainsKey("RoomName") ? (string)rowData["RoomName"] : roomTemp.RoomName;
+
+            if (rowData.ContainsKey("CurrentTemperature") && rowData["CurrentTemperature"] != null)
             {
-                // Assign parameters with null handling for missing or nullable values
-                command.Parameters.AddWithValue("@Id", rowData["Id"]);
-                command.Parameters.AddWithValue("@RoomName", rowData.ContainsKey("RoomName") ? rowData["RoomName"] : (object)DBNull.Value);
-                command.Parameters.AddWithValue("@CurrentTemperature", rowData.ContainsKey("CurrentTemperature") ? rowData["CurrentTemperature"] : (object)DBNull.Value);
-                command.Parameters.AddWithValue("@CurrentTime", rowData.ContainsKey("CurrentTime") ? rowData["CurrentTime"] : (object)DBNull.Value);
-                command.Parameters.AddWithValue("@CreatedAt", rowData.ContainsKey("CreatedAt") ? rowData["CreatedAt"] : (object)DBNull.Value);
-                command.Parameters.AddWithValue("@UpdatedAt", rowData.ContainsKey("UpdatedAt") ? rowData["UpdatedAt"] : (object)DBNull.Value);
-
-                await command.ExecuteNonQueryAsync();
+                roomTemp.CurrentTemperature = Convert.ToDouble(rowData["CurrentTemperature"]);
             }
+
+            // For CurrentTime
+            if (rowData.ContainsKey("CurrentTime") && rowData["CurrentTime"] is string currentTimeStr)
+            {
+                roomTemp.CurrentTime = DateTime.Parse(currentTimeStr);
+            }
+
+            // For CreatedAt
+            if (rowData.ContainsKey("CreatedAt") && rowData["CreatedAt"] is string createdAtStr)
+            {
+                roomTemp.CreatedAt = DateTime.Parse(createdAtStr);
+            }
+
+            // For UpdatedAt
+            if (rowData.ContainsKey("UpdatedAt") && rowData["UpdatedAt"] is string updatedAtStr)
+            {
+                roomTemp.UpdatedAt = DateTime.Parse(updatedAtStr);
+            }
+
+            _context.RoomTemperatures.Update(roomTemp);
         }
     }
 
-    // Helper method to delete rows by Id
+
     private async Task DeleteRowAsync(int id)
     {
-        using (var connection = new NpgsqlConnection(_connectionString))
+        var entityToDelete = await _context.RoomTemperatures.FindAsync(id);
+        if (entityToDelete != null)
         {
-            await connection.OpenAsync();
-            var query = "DELETE FROM public.\"RoomTemperatures\" WHERE \"Id\" = @Id";
-
-            using (var command = new NpgsqlCommand(query, connection))
-            {
-                command.Parameters.AddWithValue("@Id", id);
-                await command.ExecuteNonQueryAsync();
-            }
+            _context.RoomTemperatures.Remove(entityToDelete);
         }
     }
 }
 
-// Delta class to represent changes in JSON format
 public class Delta
 {
     public List<Dictionary<string, object>> Inserts { get; set; } = new List<Dictionary<string, object>>();
