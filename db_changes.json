@@ -1,13 +1,4 @@
 {
   "Inserts": [],
-  "Updates": [
-    {
-      "Id": 1,
-      "RoomName": "Toilet",
-      "CurrentTemperature": 21.0,
-      "CurrentTime": "2024-10-28T14:22:58Z",
-      "CreatedAt": "2024-10-28T14:22:58Z",
-      "UpdatedAt": "2024-10-28T15:39:58Z"
-    }
-  ]
+  "Updates": []
 }

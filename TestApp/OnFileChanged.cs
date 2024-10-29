@@ -45,8 +45,9 @@ namespace TestApp
                 try
                 {
                     
-                    await dbUpdater.ApplyChangesAsync(_mqttSettings.DbChangesFilePath);
+                    await dbUpdater.ApplyChangesAsync(_appDbContext,_mqttSettings.DbChangesFilePath);
                     Console.WriteLine("Changes applied successfully.");
+                    File.WriteAllText(_mqttSettings.DbChangesFilePath, "{\r\n  \"Inserts\": [],\r\n  \"Updates\": []\r\n}");
                 }
                 catch (Exception ex)
                 {

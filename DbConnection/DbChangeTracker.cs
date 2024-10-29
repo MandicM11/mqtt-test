@@ -5,17 +5,12 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Serilog;
 
-public class DbChangeTracker
+public class DbChangeTracker(AppDbContext context)
 {
-    private readonly AppDbContext _context;
-    private DateTime _lastSyncTime;
-
-    public DbChangeTracker(AppDbContext context)
-    {
-        _context = context;
-        _lastSyncTime = DateTime.UtcNow.AddMinutes(-1);
-    }
+    private readonly AppDbContext _context = context;
+    private static DateTime _lastSyncTime = DateTime.UtcNow.AddMinutes(-1).AddHours(1);
 
     public async Task<string> GenerateDeltaAsync()
     {
@@ -25,16 +20,17 @@ public class DbChangeTracker
             Updates = await GetUpdatedRowsAsync(),
             // Deletes = await GetDeletedRowsAsync()
         };
-
-        _lastSyncTime = DateTime.UtcNow;
-
+        Log.Information("sync pre GenerateDelta je: {LT}", _lastSyncTime);
+        _lastSyncTime = DateTime.UtcNow.AddHours(1);
+        Log.Information("sync u GenerateDelta je: {LT}", _lastSyncTime);
         return JsonConvert.SerializeObject(changes, Formatting.Indented);
     }
 
-    public async Task SaveDeltaToFileAsync(string filePath)
+    public async Task SaveDeltaToFileAsync( string filePath)
     {
         var deltaJson = await GenerateDeltaAsync();
         await File.WriteAllTextAsync(filePath, deltaJson);
+        Log.Information("sync u GenerateDelta je: {LT}", _lastSyncTime);
     }
 
     private async Task<List<Dictionary<string, object>>> GetNewRowsAsync()
@@ -67,5 +63,6 @@ public class DbChangeTracker
                 { "UpdatedAt", r.UpdatedAt }
             })
             .ToListAsync();
+
     }
 }

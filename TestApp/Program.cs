@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using Serilog;
 using TestApp;
@@ -23,36 +24,47 @@ class Program
         // Bind the MqttSettings section to the MqttSettings class
         var mqttSettings = config.GetSection("MqttSettings").Get<MqttSettings>();
         var connectionString = mqttSettings.PublisherConnectionString;  // Depending on the role
+        if (string.IsNullOrEmpty(connectionString))
+        {
+            Log.Error("Connection string is null or empty.");
+            return;
+        }
         var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
         optionsBuilder.UseNpgsql(connectionString); // Use the dynamically loaded connection string
 
         var appDbContext = new AppDbContext(optionsBuilder.Options, connectionString);
-
+        
 
         // Pass the connection string to DbUpdater and DbChangeTracker
-        DbUpdater dbUpdater = new DbUpdater(appDbContext);
-        DbChangeTracker dbChangeTracker = new DbChangeTracker(appDbContext);
+        DbUpdater dbUpdater = new(appDbContext);
+        DbChangeTracker dbChangeTracker = new(appDbContext);
+        await dbUpdater.ApplyChangesAsync(appDbContext, mqttSettings.DbChangesFilePath);
 
-        TimeSpan trackingInterval = TimeSpan.FromMinutes(0.1);
+
+
+        TimeSpan trackingInterval = TimeSpan.FromMinutes(0.2);
 
         // Task for MQTT connection
         Task mqttTask = RunMqttClientAsync(mqttSettings);
 
         // Task for database tracking loop
-        Task trackingTask = RunTrackingLoopAsync(dbUpdater, dbChangeTracker, trackingInterval, mqttSettings);
+        Task trackingTask = RunTrackingLoopAsync(dbUpdater, dbChangeTracker, trackingInterval, mqttSettings, connectionString);
 
         await Task.WhenAll(mqttTask, trackingTask);
     }
 
-    private static async Task RunTrackingLoopAsync(DbUpdater dbUpdater, DbChangeTracker dbChangeTracker, TimeSpan trackingInterval, MqttSettings mqttSettings)
+    private static async Task RunTrackingLoopAsync(DbUpdater dbUpdater, DbChangeTracker dbChangeTracker, TimeSpan trackingInterval, MqttSettings mqttSettings, string connectionString)
     {
-        
+        var _optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
         while (true)
         {
             try
             {
+
+                using var appDbContext = new AppDbContext(_optionsBuilder.Options, connectionString);
                 await dbChangeTracker.SaveDeltaToFileAsync(mqttSettings.DbChangesFilePath);
-                await dbUpdater.ApplyChangesAsync(mqttSettings.DbChangesFilePath);
+                await dbUpdater.ApplyChangesAsync(appDbContext, mqttSettings.DbChangesFilePath);
+                
             }
             catch (Exception ex)
             {
