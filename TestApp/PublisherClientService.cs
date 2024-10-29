@@ -9,6 +9,7 @@ using MQTTnet.Protocol;
 using TestApp.MqttClientInterfaces;
 using System.Threading;
 using TestApp;
+using MQTTnet.Exceptions;
 
 
 public class PublisherClientService : IPublisher
@@ -45,27 +46,32 @@ public class PublisherClientService : IPublisher
 
         try
         {
+            Log.Information("Attempting to connect to MQTT broker at {Broker}:{Port}", _mqttSettings.Broker, _mqttSettings.Port);
+            
             var connectResult = await _mqttClient.ConnectAsync(options);
+
             if (connectResult.ResultCode == MqttClientConnectResultCode.Success)
             {
                 Log.Information("Connected to MQTT broker as {Role}", _mqttSettings.Role);
                 while (true)
                 {
-
-                    await PublishAsync(_mqttSettings.Topic, _mqttSettings.DbChangesFilePath);
+                    Log.Information("Inside publishing loop.");
+                    await PublishAsync(_mqttSettings.Topic);
                     await Task.Delay(3000);
-
                 }
-
             }
             else
             {
                 Log.Error("Failed to connect to MQTT broker: {ResultCode}", connectResult.ResultCode);
             }
         }
+        catch (MqttCommunicationException ex)
+        {
+            Log.Error("Communication error while connecting to MQTT broker: {Message}", ex.Message);
+        }
         catch (Exception ex)
         {
-            Log.Error("Error connecting to MQTT broker: {Message}", ex.Message);
+            Log.Error("Unexpected error during MQTT connection attempt: {Message}", ex.Message);
         }
     }
 
@@ -120,12 +126,15 @@ public class PublisherClientService : IPublisher
     }
 
     // Publisher Implementation 
-    public async Task PublishAsync(string topic, object data)
+    public async Task PublishAsync(string topic)
     {
-        byte[] payload = await _filechanged.ReadPayloadAsync(data);
-        bool fileChange = await _filechanged.FileChangedAsync(data);
-        Log.Information("fileChange: {FileChange}", fileChange);
-        if (fileChange)
+        Log.Information("ovde sam usao6");
+        //byte[] payload = await _filechanged.ReadPayloadAsync(data);
+        //bool fileChange = await _filechanged.FileChangedAsync(data);
+        //Log.Information("fileChange: {FileChange}", fileChange);
+        byte[] payload = await _filechanged.DatabaseChangedAsync();
+        //bool dbChange = await _filechanged.DbChangeHappenedAsync(flag);
+        if(payload != null || payload.Length != 0)
         {
             Log.Information("We have a change so we are publishing");
             var mqttMessage = new MqttApplicationMessageBuilder()
@@ -135,7 +144,7 @@ public class PublisherClientService : IPublisher
                     .Build();
 
             await _mqttClient.PublishAsync(mqttMessage);
-            await File.WriteAllBytesAsync(_mqttSettings.LocalFilePath, payload);
+            //await File.WriteAllBytesAsync(_mqttSettings.LocalFilePath, payload);
             Log.Information("Published data to topic: {Topic}", topic);
 
 

@@ -62,6 +62,21 @@ namespace TestApp
                 Log.Warning("The SavedFilePath is invalid or empty.");
             }
         }
+        public async Task ReaderDatabaseAsync(byte[] payload)
+        {
+            DbUpdater dbUpdater = new DbUpdater( _appDbContext);
+            try
+            {
+
+                await dbUpdater.ApplyDbChangesAsync(_appDbContext, payload);
+                Console.WriteLine("Changes applied successfully.");
+                //File.WriteAllText(_mqttSettings.DbChangesFilePath, "{\r\n  \"Inserts\": [],\r\n  \"Updates\": []\r\n}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error applying changes: {ex.Message}");
+            }
+        }
     }
 }
 

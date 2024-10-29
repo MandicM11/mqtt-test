@@ -8,7 +8,7 @@ namespace TestApp.MqttClientInterfaces
 {
     public interface IPublisher
     {
-        Task PublishAsync(string topic, object data);
+        Task PublishAsync(string topic);
 
     }
 
@@ -22,11 +22,19 @@ namespace TestApp.MqttClientInterfaces
     {
         Task<byte[]> ReadPayloadAsync(object data);
         Task<bool> FileChangedAsync(object data);
+
+        Task<byte[]>DatabaseChangedAsync();
+
+        Task<bool> DbChangeHappenedAsync();
+
     }
 
     public interface IOnFileChanged
     {
         Task ReadFileAsync(byte[] payload);
+
+        Task ReaderDatabaseAsync(byte[] paylod);
+
     }
 
 }

@@ -26,6 +26,7 @@ public class DbChangeTracker(AppDbContext context)
         return JsonConvert.SerializeObject(changes, Formatting.Indented);
     }
 
+
     public async Task SaveDeltaToFileAsync( string filePath)
     {
         var deltaJson = await GenerateDeltaAsync();

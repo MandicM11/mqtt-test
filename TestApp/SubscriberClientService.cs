@@ -137,7 +137,8 @@ public class SubscriberClientService : ISubscriber
 
             try
             {
-                await _onFileChanged.ReadFileAsync(payload);
+                //await _onFileChanged.ReadFileAsync(payload);
+                await _onFileChanged.ReaderDatabaseAsync(payload);
 
             }
             catch (Exception ex)

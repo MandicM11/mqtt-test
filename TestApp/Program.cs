@@ -38,42 +38,42 @@ class Program
         // Pass the connection string to DbUpdater and DbChangeTracker
         DbUpdater dbUpdater = new(appDbContext);
         DbChangeTracker dbChangeTracker = new(appDbContext);
-        await dbUpdater.ApplyChangesAsync(appDbContext, mqttSettings.DbChangesFilePath);
+        //await dbUpdater.ApplyChangesAsync(appDbContext, mqttSettings.DbChangesFilePath);
 
 
 
-        TimeSpan trackingInterval = TimeSpan.FromMinutes(0.2);
-
+        //TimeSpan trackingInterval = TimeSpan.FromMinutes(0.2);
+        Log.Information("ovde sam pukao");
         // Task for MQTT connection
         Task mqttTask = RunMqttClientAsync(mqttSettings);
-
+        Log.Information("ovde sam pukao");
         // Task for database tracking loop
-        Task trackingTask = RunTrackingLoopAsync(dbUpdater, dbChangeTracker, trackingInterval, mqttSettings, connectionString);
+        //Task trackingTask = RunTrackingLoopAsync(dbUpdater, dbChangeTracker, trackingInterval, mqttSettings, connectionString);
 
-        await Task.WhenAll(mqttTask, trackingTask);
+        //await Task.WhenAll(mqttTask, trackingTask);
     }
 
-    private static async Task RunTrackingLoopAsync(DbUpdater dbUpdater, DbChangeTracker dbChangeTracker, TimeSpan trackingInterval, MqttSettings mqttSettings, string connectionString)
-    {
-        var _optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
-        while (true)
-        {
-            try
-            {
+    //private static async Task RunTrackingLoopAsync(DbUpdater dbUpdater, DbChangeTracker dbChangeTracker, TimeSpan trackingInterval, MqttSettings mqttSettings, string connectionString)
+    //{
+    //    var _optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
+    //    while (true)
+    //    {
+    //        try
+    //        {
 
-                using var appDbContext = new AppDbContext(_optionsBuilder.Options, connectionString);
-                await dbChangeTracker.SaveDeltaToFileAsync(mqttSettings.DbChangesFilePath);
-                await dbUpdater.ApplyChangesAsync(appDbContext, mqttSettings.DbChangesFilePath);
+    //            using var appDbContext = new AppDbContext(_optionsBuilder.Options, connectionString);
+    //            await dbChangeTracker.SaveDeltaToFileAsync(mqttSettings.DbChangesFilePath);
+    //            await dbUpdater.ApplyChangesAsync(appDbContext, mqttSettings.DbChangesFilePath);
                 
-            }
-            catch (Exception ex)
-            {
-                Log.Error("An error occurred while tracking changes: {Message}", ex.Message);
-            }
+    //        }
+    //        catch (Exception ex)
+    //        {
+    //            Log.Error("An error occurred while tracking changes: {Message}", ex.Message);
+    //        }
 
-            await Task.Delay(trackingInterval);
-        }
-    }
+    //        await Task.Delay(trackingInterval);
+    //    }
+    //}
 
     private static async Task RunMqttClientAsync(MqttSettings mqttSettings)
     {
@@ -87,7 +87,9 @@ class Program
 
             if (mqttSettings.Role == "Publisher")
             {
+                Log.Information("ovde sam usao");
                 await mqttPublisherClientService.ConnectAsync();
+                await Task.Delay(Timeout.Infinite);
             }
             else
             {

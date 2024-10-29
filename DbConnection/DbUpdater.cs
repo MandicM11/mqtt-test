@@ -35,6 +35,30 @@ public class DbUpdater(AppDbContext context)
         
     }
 
+    public async Task ApplyDbChangesAsync(AppDbContext context, byte[] payload)
+    {
+        string jsonContent = payload.ToString();
+        var changes = JsonConvert.DeserializeObject<Delta>(jsonContent) ?? new Delta();
+
+        foreach (var insert in changes.Inserts)
+        {
+            await InsertRowAsync(context, insert);
+        }
+
+        foreach (var update in changes.Updates)
+        {
+            await UpdateRowAsync(context, update);
+        }
+
+        foreach (var deleteId in changes.Deletes)
+        {
+            await DeleteRowAsync(deleteId);
+        }
+
+        await context.SaveChangesAsync();
+
+    }
+
     private async Task InsertRowAsync(AppDbContext context,Dictionary<string, object> rowData)
     {
         int id = Convert.ToInt32(rowData["Id"]);

@@ -13,6 +13,7 @@ namespace TestApp
     public class FileChanged: IFileChanged
     {
         private readonly MqttSettings _mqttSettings;
+        private readonly AppDbContext _appDbContext;
 
         public FileChanged(MqttSettings mqttSettings)
         {
@@ -86,5 +87,23 @@ namespace TestApp
 
             return fileChanged;
         }
+
+        public async Task<byte[]> DatabaseChangedAsync()
+        {
+         //Takes JSON of changes and converts it into array of bytes for the payload 
+            DbChangeTracker dbUpdater = new DbChangeTracker(_appDbContext);
+            string deltaJson = await dbUpdater.GenerateDeltaAsync(); 
+            byte[] payload = Encoding.ASCII.GetBytes(deltaJson); 
+            return payload;
+        }
+
+        public async Task<bool> DbChangeHappenedAsync()
+        {
+            var change = false;
+
+            return change;
+        }
+
+       
     }
 }
