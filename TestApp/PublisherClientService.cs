@@ -15,18 +15,17 @@ public class PublisherClientService : IPublisher
 {
     private readonly MqttSettings _mqttSettings;
     private readonly IMqttClient _mqttClient;
-    //private readonly HandlePayload _handlePayload;
+    private readonly FileChanged _filechanged;
     private bool _isConnecting;
     private readonly SemaphoreSlim _reconnectSemaphore = new SemaphoreSlim(1, 1);
 
-    public PublisherClientService(MqttSettings mqttSettings)
+    public PublisherClientService(MqttSettings mqttSettings, FileChanged filechanged)
     {
         _mqttSettings = mqttSettings;
         var factory = new MqttFactory();
         _mqttClient = factory.CreateMqttClient();
-
-        // Attach the Disconnected event handler
         _mqttClient.DisconnectedAsync += HandleDisconnectedAsync;
+        _filechanged = filechanged;
     }
 
     public async Task ConnectAsync()
@@ -53,7 +52,7 @@ public class PublisherClientService : IPublisher
                 while (true)
                 {
 
-                    await PublishAsync(_mqttSettings.Topic, _mqttSettings.PublishedFilePath);
+                    await PublishAsync(_mqttSettings.Topic, _mqttSettings.DbChangesFilePath);
                     await Task.Delay(3000);
 
                 }
@@ -123,15 +122,8 @@ public class PublisherClientService : IPublisher
     // Publisher Implementation 
     public async Task PublishAsync(string topic, object data)
     {
-
-
-        var handlePublisher = new HandlePublisher(_mqttSettings);
-        byte[] payload = await handlePublisher.HandlePayloadAsync(data);
-        byte[] lastPublishedPayload;
-
-
-        lastPublishedPayload = await File.ReadAllBytesAsync(_mqttSettings.LocalFilePath);
-        bool fileChange = await handlePublisher.filesChangedAsync(payload, lastPublishedPayload);
+        byte[] payload = await _filechanged.ReadPayloadAsync(data);
+        bool fileChange = await _filechanged.FileChangedAsync(data);
         Log.Information("fileChange: {FileChange}", fileChange);
         if (fileChange)
         {
@@ -141,7 +133,6 @@ public class PublisherClientService : IPublisher
                     .WithPayload(payload)
                     .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
                     .Build();
-
 
             await _mqttClient.PublishAsync(mqttMessage);
             await File.WriteAllBytesAsync(_mqttSettings.LocalFilePath, payload);
