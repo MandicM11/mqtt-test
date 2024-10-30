@@ -16,9 +16,10 @@ namespace TestApp
         private readonly AppDbContext _appDbContext;
         private readonly MqttSettings _mqttSettings;
 
-        public OnFileChanged(MqttSettings mqttSettings)
+        public OnFileChanged(MqttSettings mqttSettings, AppDbContext appDbContext)
         {
             _mqttSettings = mqttSettings;
+            _appDbContext = appDbContext ?? throw new ArgumentNullException(nameof(appDbContext));
         }
         public async Task ReadFileAsync(byte[] payload)
         {

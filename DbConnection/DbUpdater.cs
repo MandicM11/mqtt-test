@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using DbConnection;
 using Serilog;
+using System.Text;
 
 public class DbUpdater(AppDbContext context)
 {
@@ -37,9 +38,13 @@ public class DbUpdater(AppDbContext context)
 
     public async Task ApplyDbChangesAsync(AppDbContext context, byte[] payload)
     {
-        string jsonContent = payload.ToString();
+        // Convert byte array to JSON string
+        string jsonContent = Encoding.UTF8.GetString(payload);
+
+        // Deserialize JSON into Delta object
         var changes = JsonConvert.DeserializeObject<Delta>(jsonContent) ?? new Delta();
 
+        // Process inserts, updates, and deletes
         foreach (var insert in changes.Inserts)
         {
             await InsertRowAsync(context, insert);
@@ -56,8 +61,8 @@ public class DbUpdater(AppDbContext context)
         }
 
         await context.SaveChangesAsync();
-
     }
+
 
     private async Task InsertRowAsync(AppDbContext context,Dictionary<string, object> rowData)
     {
@@ -121,6 +126,11 @@ public class DbUpdater(AppDbContext context)
             if (rowData.ContainsKey("UpdatedAt") && rowData["UpdatedAt"] is string updatedAtStr)
             {
                 roomTemp.UpdatedAt = DateTime.Parse(updatedAtStr);
+            }
+            else
+            {
+                // If UpdatedAt isn't provided, set it to the current time
+                roomTemp.UpdatedAt = DateTime.UtcNow; // Or your preferred timezone adjustment
             }
 
             context.RoomTemperatures.Update(roomTemp);

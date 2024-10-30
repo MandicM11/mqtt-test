@@ -43,10 +43,10 @@ class Program
 
 
         //TimeSpan trackingInterval = TimeSpan.FromMinutes(0.2);
-        Log.Information("ovde sam pukao");
+        
         // Task for MQTT connection
-        Task mqttTask = RunMqttClientAsync(mqttSettings);
-        Log.Information("ovde sam pukao");
+        await RunMqttClientAsync(mqttSettings, appDbContext);
+        
         // Task for database tracking loop
         //Task trackingTask = RunTrackingLoopAsync(dbUpdater, dbChangeTracker, trackingInterval, mqttSettings, connectionString);
 
@@ -75,12 +75,13 @@ class Program
     //    }
     //}
 
-    private static async Task RunMqttClientAsync(MqttSettings mqttSettings)
+    private static async Task RunMqttClientAsync(MqttSettings mqttSettings,AppDbContext appDbContext)
     {
+        
         try
         {
-            var onFileChanged = new OnFileChanged(mqttSettings);
-            var fileChanged = new FileChanged(mqttSettings);
+            var onFileChanged = new OnFileChanged(mqttSettings, appDbContext);
+            var fileChanged = new FileChanged(mqttSettings, appDbContext);
 
             var mqttPublisherClientService = new PublisherClientService(mqttSettings, fileChanged);
             var mqttSubscriberClientService = new SubscriberClientService(mqttSettings, onFileChanged);
@@ -93,6 +94,7 @@ class Program
             }
             else
             {
+                Log.Information("ovde ne smem uci");
                 await mqttSubscriberClientService.ConnectAsync();
             }
 

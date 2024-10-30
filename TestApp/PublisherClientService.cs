@@ -10,6 +10,7 @@ using TestApp.MqttClientInterfaces;
 using System.Threading;
 using TestApp;
 using MQTTnet.Exceptions;
+using System.Collections;
 
 
 public class PublisherClientService : IPublisher
@@ -128,13 +129,13 @@ public class PublisherClientService : IPublisher
     // Publisher Implementation 
     public async Task PublishAsync(string topic)
     {
-        Log.Information("ovde sam usao6");
+      
         //byte[] payload = await _filechanged.ReadPayloadAsync(data);
         //bool fileChange = await _filechanged.FileChangedAsync(data);
         //Log.Information("fileChange: {FileChange}", fileChange);
         byte[] payload = await _filechanged.DatabaseChangedAsync();
         //bool dbChange = await _filechanged.DbChangeHappenedAsync(flag);
-        if(payload != null || payload.Length != 0)
+        if(payload != null && payload.Length != 0)
         {
             Log.Information("We have a change so we are publishing");
             var mqttMessage = new MqttApplicationMessageBuilder()
@@ -146,6 +147,8 @@ public class PublisherClientService : IPublisher
             await _mqttClient.PublishAsync(mqttMessage);
             //await File.WriteAllBytesAsync(_mqttSettings.LocalFilePath, payload);
             Log.Information("Published data to topic: {Topic}", topic);
+            var payload1 = System.Text.Encoding.UTF8.GetString(payload);
+            Log.Information("Published data is {Payload}", payload1);
 
 
         }
