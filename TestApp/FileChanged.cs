@@ -93,10 +93,6 @@ namespace TestApp
             return payload;
         }
 
-        public async Task<bool> DbChangeHappenedAsync()
-        {
-            var change = false;
-            return change;
-        }
+       
     }
 }

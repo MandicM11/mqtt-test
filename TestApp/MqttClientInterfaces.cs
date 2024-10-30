@@ -8,7 +8,7 @@ namespace TestApp.MqttClientInterfaces
 {
     public interface IPublisher
     {
-        Task PublishAsync(string topic);
+        Task PublishAsync(string topic, byte[] data);
 
     }
 
@@ -25,7 +25,7 @@ namespace TestApp.MqttClientInterfaces
 
         Task<byte[]>DatabaseChangedAsync();
 
-        Task<bool> DbChangeHappenedAsync();
+        
 
     }
 
