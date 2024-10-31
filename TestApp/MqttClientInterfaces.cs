@@ -8,7 +8,8 @@ namespace TestApp.MqttClientInterfaces
 {
     public interface IPublisher
     {
-        Task PublishAsync(string topic, byte[] data);
+        //Task PublishAsync(string topic, byte[] data);
+        Task PublishFileChangeAsync();
 
     }
 

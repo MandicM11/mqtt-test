@@ -17,24 +17,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace TestApp
 {
-    public class OnFileChanged : IOnFileChanged
+    public class OnFileChanged(MqttSettings mqttSettings, AppDbContext appDbContext, FileChanged fileChanged) : IOnFileChanged
     {
-        private readonly AppDbContext _appDbContext;
-        private readonly MqttSettings _mqttSettings;
-        private FileSystemWatcher _fileWatcher;
-        private readonly FileChanged _filechanged;
+        private readonly AppDbContext _appDbContext = appDbContext ?? throw new ArgumentNullException(nameof(appDbContext));
+        private readonly MqttSettings _mqttSettings = mqttSettings;
+        private FileSystemWatcher _fileWatcher = new FileSystemWatcher();
+        private readonly FileChanged _filechanged = fileChanged;
         private readonly OnFileChanged _onFileChanged;
 
-
-        public OnFileChanged(MqttSettings mqttSettings, AppDbContext appDbContext, FileChanged fileChanged)
-        {
-            _mqttSettings = mqttSettings;
-            _appDbContext = appDbContext ?? throw new ArgumentNullException(nameof(appDbContext));
-            _fileWatcher = new FileSystemWatcher();
-            _filechanged = fileChanged;
-            //_onFileChanged = onFileChanged;
-
-        }
         public async Task ReadFileAsync(byte[] payload)
         {
             var subscribeHelpers = new Helpers();
@@ -193,50 +183,66 @@ namespace TestApp
         }
 
 
-        public void InitializeFileWatcher(string csvFilePath)
-        {
-            _fileWatcher = new FileSystemWatcher
-            {
-            Path = Path.GetDirectoryName(csvFilePath),
-            Filter = Path.GetFileName(csvFilePath),
-            NotifyFilter = NotifyFilters.LastWrite
-        };
+        //public void InitializeFileWatcher(string csvFilePath)
+        //{
+        //    _fileWatcher = new FileSystemWatcher
+        //    {
+        //        Path = Path.GetDirectoryName(csvFilePath),
+        //        Filter = Path.GetFileName(csvFilePath),
+        //        NotifyFilter = NotifyFilters.LastWrite
+        //    };
 
-            _fileWatcher.Changed += OnCsvFileChanged;
-            _fileWatcher.EnableRaisingEvents = true;
+        //    // Attach the OnCsvFileChanged event handler
+        //    _fileWatcher.Changed += OnCsvFileChanged;
+        //    _fileWatcher.EnableRaisingEvents = true;
         }
 
-        public async void OnCsvFileChanged(object sender, FileSystemEventArgs e)
-        {
-            // Assuming mqttSettings is accessible here
-            PublisherClientService publishService = new PublisherClientService(_mqttSettings,_filechanged,_onFileChanged);
 
-            Log.Information("CSV file changed: {FilePath}", e.FullPath);
+        //private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(1, 1);
 
-            // Read the updated CSV file
-            var payload = await ReadCsvFileAsync(e.FullPath);
+        //private PublisherClientService _publishService;
 
-            if (payload != null && payload.Length > 0)
-            {
-                // Call the publish method
-                await publishService.PublishAsync(_mqttSettings.Topic);
-            }
-            else
-            {
-                Log.Information("No data to publish from changed file.");
-            }
-        }
+        //public async void OnCsvFileChanged(object sender, FileSystemEventArgs e)
+        //{
+        //    await _semaphore.WaitAsync();
+        //    try
+        //    {
+        //        if (_publishService == null)
+        //        {
+        //            _publishService = new PublisherClientService(_mqttSettings, _filechanged);
+        //        }
+
+        //        Log.Information("CSV file changed: {FilePath}", e.FullPath);
+
+        //        var payload = await ReadCsvFileAsync(e.FullPath);
+
+        //        if (payload != null && payload.Length > 0)
+        //        {
+        //            await _publishService.PublishAsync(_mqttSettings.Topic, payload);
+        //        }
+        //        else
+        //        {
+        //            Log.Information("No data to publish from changed file.");
+        //        }
+        //    }
+        //    finally
+        //    {
+        //        _semaphore.Release();
+        //    }
+        //}
+
+
 
         // Read the CSV file and return its contents as a byte array
-        private async Task<byte[]> ReadCsvFileAsync(string filePath)
-        {
-            using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
-            using var memoryStream = new MemoryStream();
-            await stream.CopyToAsync(memoryStream);
-            return memoryStream.ToArray();
-        }
+        //private async Task<byte[]> ReadCsvFileAsync(string filePath)
+        //{
+        //    using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
+        //    using var memoryStream = new MemoryStream();
+        //    await stream.CopyToAsync(memoryStream);
+        //    return memoryStream.ToArray();
+        //}
     }
-}
+
 
 
 //publisher has to read the file before he sends it and detect the change

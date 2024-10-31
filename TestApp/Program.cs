@@ -85,7 +85,7 @@ class Program
             var fileChanged = new FileChanged(mqttSettings, appDbContext);
             var onFileChanged = new OnFileChanged(mqttSettings, appDbContext, fileChanged);
 
-            var mqttPublisherClientService = new PublisherClientService(mqttSettings, fileChanged,onFileChanged);
+            var mqttPublisherClientService = new PublisherClientService(mqttSettings, fileChanged);
             var mqttSubscriberClientService = new SubscriberClientService(mqttSettings, onFileChanged);
 
             if (mqttSettings.Role == "Publisher")
