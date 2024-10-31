@@ -9,6 +9,7 @@ using MQTTnet.Protocol;
 using TestApp.MqttClientInterfaces;
 using System.Threading;
 using TestApp;
+using TestApp.helpers;
 
 
 public class SubscriberClientService : ISubscriber
@@ -125,18 +126,23 @@ public class SubscriberClientService : ISubscriber
     public async Task SubscribeAsync(string topic)
     {
         await _mqttClient.SubscribeAsync(topic);
+        Helpers helpers = new Helpers();
 
         _mqttClient.ApplicationMessageReceivedAsync += async e =>
         {
             var payload = e.ApplicationMessage.PayloadSegment.ToArray();
             Log.Information("Subscribed to topic: {Topic}", topic);
 
+
             try
             {
-                // Is payload db data or something else i can handle
                 if (IsDatabasePayload(payload))
                 {
                     await _onFileChanged.ReaderDatabaseAsync(payload);
+                }
+                else if (helpers.GetFileExtension(payload) == ".csv")
+                {
+                    await _onFileChanged.UpdateDatabaseFromCsvAsync(payload);
                 }
                 else
                 {

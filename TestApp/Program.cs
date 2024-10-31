@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using Serilog;
 using TestApp;
+using TestApp.MqttClientInterfaces;
 
 class Program
 {
@@ -64,7 +65,7 @@ class Program
     //            using var appDbContext = new AppDbContext(_optionsBuilder.Options, connectionString);
     //            await dbChangeTracker.SaveDeltaToFileAsync(mqttSettings.DbChangesFilePath);
     //            await dbUpdater.ApplyChangesAsync(appDbContext, mqttSettings.DbChangesFilePath);
-                
+
     //        }
     //        catch (Exception ex)
     //        {
@@ -80,10 +81,11 @@ class Program
         
         try
         {
-            var onFileChanged = new OnFileChanged(mqttSettings, appDbContext);
+           
             var fileChanged = new FileChanged(mqttSettings, appDbContext);
+            var onFileChanged = new OnFileChanged(mqttSettings, appDbContext, fileChanged);
 
-            var mqttPublisherClientService = new PublisherClientService(mqttSettings, fileChanged);
+            var mqttPublisherClientService = new PublisherClientService(mqttSettings, fileChanged,onFileChanged);
             var mqttSubscriberClientService = new SubscriberClientService(mqttSettings, onFileChanged);
 
             if (mqttSettings.Role == "Publisher")
