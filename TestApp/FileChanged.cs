@@ -12,13 +12,12 @@ namespace TestApp
     public class FileChanged : IFileChanged
     {
         private readonly MqttSettings _mqttSettings;
-        private readonly AppDbContext _appDbContext;
+        private readonly AppDbContext? _appDbContext; // Nullable AppDbContext
 
-        // Add AppDbContext as a constructor parameter
-        public FileChanged(MqttSettings mqttSettings, AppDbContext appDbContext)
+        public FileChanged(MqttSettings mqttSettings, AppDbContext? appDbContext)
         {
             _mqttSettings = mqttSettings;
-            _appDbContext = appDbContext ?? throw new ArgumentNullException(nameof(appDbContext));
+            _appDbContext = appDbContext; // Allow null assignment
         }
 
         public async Task<byte[]> ReadPayloadAsync(object data)
@@ -49,11 +48,11 @@ namespace TestApp
             byte[] payload = await ReadPayloadAsync(data);
             byte[] lastPublishedPayload = await File.ReadAllBytesAsync(_mqttSettings.LocalFilePath);
 
-            fileChange = await compareFilesAsync(payload, lastPublishedPayload);
+            fileChange = await CompareFilesAsync(payload, lastPublishedPayload);
             return fileChange;
         }
 
-        public async Task<bool> compareFilesAsync(byte[] payload, byte[] lastPublishedPayload)
+        public async Task<bool> CompareFilesAsync(byte[] payload, byte[] lastPublishedPayload)
         {
             var fileChanged = false;
             try
@@ -73,6 +72,12 @@ namespace TestApp
 
         public async Task<byte[]> DatabaseChangedAsync()
         {
+            if (_appDbContext == null)
+            {
+                Log.Warning("Database context is null. Skipping database change tracking.");
+                return Array.Empty<byte>();
+            }
+
             DbChangeTracker dbUpdater = new DbChangeTracker(_appDbContext);
             string deltaJson = await dbUpdater.GenerateDeltaAsync();
 
@@ -84,7 +89,6 @@ namespace TestApp
             // If no inserts or updates, return an empty byte array
             if (!hasInserts && !hasUpdates)
             {
-                Log.Information("No changes detected. Skipping publish.");
                 return Array.Empty<byte>();
             }
 
@@ -92,7 +96,5 @@ namespace TestApp
             byte[] payload = Encoding.ASCII.GetBytes(deltaJson);
             return payload;
         }
-
-       
     }
 }

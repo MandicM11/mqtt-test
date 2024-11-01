@@ -15,7 +15,7 @@ public class SubscriberClientService : ISubscriber
 {
     private readonly MqttSettings _mqttSettings;
     private readonly IMqttClient _mqttClient;
-    private readonly OnFileChanged _onFileChanged;
+    private readonly IOnFileChanged _onFileChanged;
     private bool _isConnecting;
     private readonly SemaphoreSlim _reconnectSemaphore = new SemaphoreSlim(1, 1);
 

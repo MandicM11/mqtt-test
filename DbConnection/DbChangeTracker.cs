@@ -20,9 +20,7 @@ public class DbChangeTracker(AppDbContext context)
             Updates = await GetUpdatedRowsAsync(),
             // Deletes = await GetDeletedRowsAsync()
         };
-        Log.Information("sync pre GenerateDelta je: {LT}", _lastSyncTime);
        
-        Log.Information("sync u GenerateDelta je: {LT}", _lastSyncTime);
         return JsonConvert.SerializeObject(changes, Formatting.Indented);
     }
 
@@ -31,7 +29,7 @@ public class DbChangeTracker(AppDbContext context)
     {
         var deltaJson = await GenerateDeltaAsync();
         await File.WriteAllTextAsync(filePath, deltaJson);
-        Log.Information("sync u GenerateDelta je: {LT}", _lastSyncTime);
+        ;
     }
 
     private async Task<List<Dictionary<string, object>>> GetNewRowsAsync()

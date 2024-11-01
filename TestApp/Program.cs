@@ -23,61 +23,78 @@ class Program
 
         // Bind the MqttSettings section to the MqttSettings class
         var mqttSettings = config.GetSection("MqttSettings").Get<MqttSettings>();
-        var connectionString = mqttSettings.PublisherConnectionString;  // Depending on the role
+        var connectionString = "";
+        Log.Information("Role is: {role}", mqttSettings.Role);
+        if (mqttSettings.Role == "Publisher")
+        {
+            connectionString = mqttSettings.PublisherConnectionString;
+        }
+        else
+        {
+            connectionString = mqttSettings.SubscriberConnectionString;
+        }
         if (string.IsNullOrEmpty(connectionString))
         {
-            Log.Error("Connection string is null or empty.");
-            return;
+            Log.Warning("Connection string is missing. Running in file-handling mode.");
+
+            // Run file-handling mode instead of database operations
+            await RunFileHandlingModeAsync(mqttSettings);
         }
-        var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
-        optionsBuilder.UseNpgsql(connectionString); // Use the dynamically loaded connection string
+        else
+        {
+            // Set up DbContext with the connection string
+            var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
+            optionsBuilder.UseNpgsql(connectionString);
+            var appDbContext = new AppDbContext(optionsBuilder.Options, connectionString);
 
-        var appDbContext = new AppDbContext(optionsBuilder.Options, connectionString);
-        
+            // Run tasks with database access
+            DbUpdater dbUpdater = new(appDbContext);
+            DbChangeTracker dbChangeTracker = new(appDbContext);
 
-        // Pass the connection string to DbUpdater and DbChangeTracker
-        DbUpdater dbUpdater = new(appDbContext);
-        DbChangeTracker dbChangeTracker = new(appDbContext);
-        //await dbUpdater.ApplyChangesAsync(appDbContext, mqttSettings.DbChangesFilePath);
+            // Task for MQTT connection
+            await RunMqttClientAsync(mqttSettings, appDbContext);
 
-
-
-        //TimeSpan trackingInterval = TimeSpan.FromMinutes(0.2);
-        
-        // Task for MQTT connection
-        await RunMqttClientAsync(mqttSettings, appDbContext);
-        
-        // Task for database tracking loop
-        //Task trackingTask = RunTrackingLoopAsync(dbUpdater, dbChangeTracker, trackingInterval, mqttSettings, connectionString);
-
-        //await Task.WhenAll(mqttTask, trackingTask);
+            // Uncomment if tracking loop is required
+            // TimeSpan trackingInterval = TimeSpan.FromMinutes(0.2);
+            // Task trackingTask = RunTrackingLoopAsync(dbUpdater, dbChangeTracker, trackingInterval, mqttSettings, connectionString);
+            // await Task.WhenAll(mqttTask, trackingTask);
+        }
     }
 
-    //private static async Task RunTrackingLoopAsync(DbUpdater dbUpdater, DbChangeTracker dbChangeTracker, TimeSpan trackingInterval, MqttSettings mqttSettings, string connectionString)
-    //{
-    //    var _optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
-    //    while (true)
-    //    {
-    //        try
-    //        {
-
-    //            using var appDbContext = new AppDbContext(_optionsBuilder.Options, connectionString);
-    //            await dbChangeTracker.SaveDeltaToFileAsync(mqttSettings.DbChangesFilePath);
-    //            await dbUpdater.ApplyChangesAsync(appDbContext, mqttSettings.DbChangesFilePath);
-                
-    //        }
-    //        catch (Exception ex)
-    //        {
-    //            Log.Error("An error occurred while tracking changes: {Message}", ex.Message);
-    //        }
-
-    //        await Task.Delay(trackingInterval);
-    //    }
-    //}
-
-    private static async Task RunMqttClientAsync(MqttSettings mqttSettings,AppDbContext appDbContext)
+    private static async Task RunFileHandlingModeAsync(MqttSettings mqttSettings)
     {
-        
+        try
+        {
+            
+            var onFileChanged = new OnFileChanged(mqttSettings, null);
+            var fileChanged = new FileChanged(mqttSettings, null);
+
+            var mqttPublisherClientService = new PublisherClientService(mqttSettings, fileChanged);
+            var mqttSubscriberClientService = new SubscriberClientService(mqttSettings, onFileChanged);
+
+            if (mqttSettings.Role == "Publisher")
+            {
+                await mqttPublisherClientService.ConnectAsync();
+                await Task.Delay(Timeout.Infinite);
+            }
+            else
+            {
+                await mqttSubscriberClientService.ConnectAsync();
+                await Task.Delay(Timeout.Infinite);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Fatal("An error occurred in file-handling mode: {Message}", ex.Message);
+        }
+        finally
+        {
+            Log.CloseAndFlush();
+        }
+    }
+
+    private static async Task RunMqttClientAsync(MqttSettings mqttSettings, AppDbContext appDbContext)
+    {
         try
         {
             var onFileChanged = new OnFileChanged(mqttSettings, appDbContext);
@@ -88,17 +105,14 @@ class Program
 
             if (mqttSettings.Role == "Publisher")
             {
-                Log.Information("ovde sam usao");
                 await mqttPublisherClientService.ConnectAsync();
                 await Task.Delay(Timeout.Infinite);
             }
             else
             {
-                Log.Information("ovde ne smem uci");
                 await mqttSubscriberClientService.ConnectAsync();
+                await Task.Delay(Timeout.Infinite);
             }
-
-            await Task.Delay(Timeout.Infinite);
         }
         catch (Exception ex)
         {
