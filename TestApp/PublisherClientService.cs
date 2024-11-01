@@ -9,15 +9,18 @@ using MQTTnet.Protocol;
 using TestApp.MqttClientInterfaces;
 using System.Threading;
 using TestApp;
+using MQTTnet.Exceptions;
+using System.Collections;
 
 
 public class PublisherClientService : IPublisher
 {
     private readonly MqttSettings _mqttSettings;
     private readonly IMqttClient _mqttClient;
-    private readonly FileChanged _filechanged;
+    private readonly IFileChanged _filechanged;
     private bool _isConnecting;
     private readonly SemaphoreSlim _reconnectSemaphore = new SemaphoreSlim(1, 1);
+    private byte[] _lastPayload;
 
     public PublisherClientService(MqttSettings mqttSettings, FileChanged filechanged)
     {
@@ -45,27 +48,46 @@ public class PublisherClientService : IPublisher
 
         try
         {
+             byte[] payload;
+            Log.Information("Publisher path is: {path}", _mqttSettings.PublishedFilePath);
+            Log.Information("Attempting to connect to MQTT broker at {Broker}:{Port}", _mqttSettings.Broker, _mqttSettings.Port);
+            if (_mqttSettings.PublishedFilePath == null)
+            {
+                payload = null;
+            }
+            else
+            {
+                string projectDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", ".."));
+                string publishedFilePath = Path.Combine(projectDir, "publishing.txt");
+                payload = File.ReadAllBytes(publishedFilePath);
+                
+            }
+
             var connectResult = await _mqttClient.ConnectAsync(options);
+            
             if (connectResult.ResultCode == MqttClientConnectResultCode.Success)
             {
                 Log.Information("Connected to MQTT broker as {Role}", _mqttSettings.Role);
                 while (true)
                 {
-
-                    await PublishAsync(_mqttSettings.Topic, _mqttSettings.DbChangesFilePath);
+                   
+                    await PublishAsync(_mqttSettings.Topic,payload);
+                    
                     await Task.Delay(3000);
-
                 }
-
             }
             else
             {
                 Log.Error("Failed to connect to MQTT broker: {ResultCode}", connectResult.ResultCode);
             }
         }
+        catch (MqttCommunicationException ex)
+        {
+            Log.Error("Communication error while connecting to MQTT broker: {Message}", ex.Message);
+        }
         catch (Exception ex)
         {
-            Log.Error("Error connecting to MQTT broker: {Message}", ex.Message);
+            Log.Error("Unexpected error during MQTT connection attempt: {Message}", ex.Message);
         }
     }
 
@@ -120,28 +142,49 @@ public class PublisherClientService : IPublisher
     }
 
     // Publisher Implementation 
-    public async Task PublishAsync(string topic, object data)
+    public async Task PublishAsync(string topic, byte[]? payload = null)
+{
+    // If payload is not provided, attempt to get the database change payload
+    if (payload == null)
     {
-        byte[] payload = await _filechanged.ReadPayloadAsync(data);
-        bool fileChange = await _filechanged.FileChangedAsync(data);
-        Log.Information("fileChange: {FileChange}", fileChange);
-        if (fileChange)
-        {
-            Log.Information("We have a change so we are publishing");
-            var mqttMessage = new MqttApplicationMessageBuilder()
-                    .WithTopic(topic)
-                    .WithPayload(payload)
-                    .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
-                    .Build();
-
-            await _mqttClient.PublishAsync(mqttMessage);
-            await File.WriteAllBytesAsync(_mqttSettings.LocalFilePath, payload);
-            Log.Information("Published data to topic: {Topic}", topic);
-
-
-        }
-
+        payload = await _filechanged.DatabaseChangedAsync();
     }
+    // If payload is provided its treated as any file type we support
+    if (payload != null && payload.Length != 0)
+    {
+            if (_mqttSettings.PublishedFilePath != null)
+            {
+                string projectDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", ".."));
+                string publishedFilePath = Path.Combine(projectDir, "publishing.txt");
+                payload = File.ReadAllBytes(publishedFilePath);
+            }
+            // Compare the new payload with the last known payload
+            if (_lastPayload != null && _lastPayload.SequenceEqual(payload))
+            {
+                Log.Information("No change detected in the file. Skipping write.");
+                return;
+            }
+
+            Log.Information("We have data to publish");
+
+        var mqttMessage = new MqttApplicationMessageBuilder()
+            .WithTopic(topic)
+            .WithPayload(payload)
+            .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+            .Build();
+
+        await _mqttClient.PublishAsync(mqttMessage);
+        Log.Information("Published data to topic: {Topic}", topic);
+        var payloadString = System.Text.Encoding.UTF8.GetString(payload);
+        Log.Information("Published data is {Payload}", payloadString);
+        _lastPayload = payload;
+        }
+    else
+    {
+        Log.Information("No data to publish, waiting for a change.");
+    }
+}
+
    
     public async Task DisconnectAsync()
     {

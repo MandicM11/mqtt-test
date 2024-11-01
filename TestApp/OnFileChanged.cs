@@ -1,36 +1,40 @@
 ﻿using Serilog;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using System.IO;
 using System.Threading.Tasks;
 using TestApp.MqttClientInterfaces;
 using TestApp.helpers;
-using System.Security.Cryptography.X509Certificates;
-
 
 namespace TestApp
 {
-    public class OnFileChanged: IOnFileChanged
+    public class OnFileChanged : IOnFileChanged
     {
-        private readonly AppDbContext _appDbContext;
+        private readonly AppDbContext? _appDbContext; // Nullable AppDbContext
         private readonly MqttSettings _mqttSettings;
+        private byte[]? _lastPayload;
 
-        public OnFileChanged(MqttSettings mqttSettings)
+        public OnFileChanged(MqttSettings mqttSettings, AppDbContext? appDbContext)
         {
             _mqttSettings = mqttSettings;
+            _appDbContext = appDbContext; // Allow null assignment
+            
         }
+
         public async Task ReadFileAsync(byte[] payload)
         {
+            // Compare the new payload with the last known payload
+            if (_lastPayload != null && _lastPayload.SequenceEqual(payload))
+            {
+                Log.Information("No change detected in the file. Skipping write.");
+                return;
+            }
+
             var subscribeHelpers = new Helpers();
-            DbUpdater dbUpdater = new DbUpdater(_appDbContext);
-
             string fileExtension = subscribeHelpers.GetFileExtension(payload);
-
-            Log.Information($"{fileExtension}");
+            Log.Information($"File extension detected: {fileExtension}");
+            string projectDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", ".."));
             var uniqueFileName = $"received_file{fileExtension}";
-            var filePath = Path.Combine(_mqttSettings.SavedFilePath, uniqueFileName);
-          
+            var filePath = Path.Combine(projectDir, uniqueFileName);
 
             // Ensure the directory exists
             if (!string.IsNullOrWhiteSpace(_mqttSettings.SavedFilePath))
@@ -42,28 +46,39 @@ namespace TestApp
                     Log.Information("Directory created: {Directory}", directory);
                 }
 
-                try
-                {
-                    
-                    await dbUpdater.ApplyChangesAsync(_appDbContext,_mqttSettings.DbChangesFilePath);
-                    Console.WriteLine("Changes applied successfully.");
-                    File.WriteAllText(_mqttSettings.DbChangesFilePath, "{\r\n  \"Inserts\": [],\r\n  \"Updates\": []\r\n}");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error applying changes: {ex.Message}");
-                }
+                // Write the file to the specified path
+                await File.WriteAllBytesAsync(filePath, payload);
+                Log.Information("File saved at {FilePath}", filePath);
 
-
+                // Update the last known payload
+                _lastPayload = payload;
             }
-            
             else
             {
                 Log.Warning("The SavedFilePath is invalid or empty.");
             }
         }
+
+        public async Task ReaderDatabaseAsync(byte[] payload)
+        {
+            // Only perform database operations if _appDbContext is not null
+            if (_appDbContext != null)
+            {
+                DbUpdater dbUpdater = new DbUpdater(_appDbContext);
+                try
+                {
+                    await dbUpdater.ApplyDbChangesAsync(_appDbContext, payload);
+                    Log.Information("Database changes applied successfully.");
+                }
+                catch (Exception ex)
+                {
+                    Log.Error($"Error applying changes: {ex.Message}");
+                }
+            }
+            else
+            {
+                Log.Warning("Database context is null. Skipping database operations.");
+            }
+        }
     }
 }
-
-
-//publisher has to read the file before he sends it and detect the change

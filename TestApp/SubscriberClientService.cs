@@ -15,7 +15,7 @@ public class SubscriberClientService : ISubscriber
 {
     private readonly MqttSettings _mqttSettings;
     private readonly IMqttClient _mqttClient;
-    private readonly OnFileChanged _onFileChanged;
+    private readonly IOnFileChanged _onFileChanged;
     private bool _isConnecting;
     private readonly SemaphoreSlim _reconnectSemaphore = new SemaphoreSlim(1, 1);
 
@@ -124,30 +124,43 @@ public class SubscriberClientService : ISubscriber
     // Subscriber implementation
     public async Task SubscribeAsync(string topic)
     {
-
         await _mqttClient.SubscribeAsync(topic);
 
         _mqttClient.ApplicationMessageReceivedAsync += async e =>
         {
             var payload = e.ApplicationMessage.PayloadSegment.ToArray();
-
             Log.Information("Subscribed to topic: {Topic}", topic);
-
-            
 
             try
             {
-                await _onFileChanged.ReadFileAsync(payload);
-
+                // Is payload db data or something else i can handle
+                if (IsDatabasePayload(payload))
+                {
+                    await _onFileChanged.ReaderDatabaseAsync(payload);
+                }
+                else
+                {
+                    await _onFileChanged.ReadFileAsync(payload);
+                }
             }
             catch (Exception ex)
             {
                 Log.Error("Error processing received message: {Message}", ex.Message);
             }
-
         };
-
     }
+
+    // Add a method to determine if the payload is intended for the database
+    private bool IsDatabasePayload(byte[] payload)
+    {
+        // Try to convert the payload to a string and check for JSON structure
+        string payloadString = Encoding.UTF8.GetString(payload);
+
+        // Simple check to see if it looks like JSON (could also use a more robust method)
+        return payloadString.StartsWith("{") && payloadString.EndsWith("}");
+    }
+
+
 
     public async Task DisconnectAsync()
     {

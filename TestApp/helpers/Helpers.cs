@@ -49,5 +49,7 @@ namespace TestApp.helpers
             // Check if all bytes are within the ASCII printable range (32 to 126)
             return payload.All(b => b >= 32 && b <= 126);
         }
+       
+
     }
 }
